@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>急げ！宅配便（仮）3Dプロトタイプ</title>
+<style>
+:root{color-scheme:dark;--orange:#FF5E00;--yellow:#FFD700;--text:#E2E8F0}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0B0F19;color:var(--text);font-family:"Noto Sans JP",system-ui,sans-serif;overflow:hidden}
+#g{position:fixed;inset:0;display:block;width:100%;height:100%}
+#hud{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);padding:10px 14px;pointer-events:none;font-weight:700;font-size:14px;text-shadow:0 1px 3px #000;display:flex;justify-content:space-between;gap:12px}
+.bar{width:170px;height:12px;background:#2A364F;border-radius:6px;overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;width:0;background:var(--orange)}
+#cross{position:fixed;left:50%;top:50%;width:8px;height:8px;margin:-4px;border:2px solid #fff8;border-radius:50%;pointer-events:none}
+#msg{position:fixed;left:0;right:0;bottom:calc(40px + env(safe-area-inset-bottom,0px));text-align:center;font-weight:900;font-size:20px;color:var(--yellow);text-shadow:0 2px 4px #000;pointer-events:none}
+#guide{position:fixed;left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));background:rgba(11,15,25,.65);border:1px solid #2A364F;border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.7;pointer-events:none;text-shadow:0 1px 2px #000}
+#guide b{display:inline-block;min-width:20px;text-align:center;background:#2A364F;border-radius:4px;padding:0 5px;margin-right:6px;color:var(--yellow)}
+#tut{position:fixed;left:50%;top:calc(96px + env(safe-area-inset-top,0px));transform:translateX(-50%);max-width:min(560px,92vw);background:rgba(11,15,25,.85);border:1px solid #FFD700;border-radius:10px;padding:10px 14px;font-size:14px;line-height:1.6;pointer-events:none;display:none;z-index:3}
+#toasts{position:fixed;left:50%;top:calc(52px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;z-index:4;width:max-content;max-width:92vw}
+.toast{background:rgba(160,20,40,.92);border:1px solid #ff6a80;color:#fff;font-weight:700;padding:8px 14px;border-radius:8px;font-size:14px;animation:tin .25s ease}
+.toast.info{background:rgba(20,80,140,.92);border-color:#6ab0ff}
+@keyframes tin{from{transform:translateY(-10px);opacity:0}to{transform:none;opacity:1}}
+#dmg{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 120px 40px rgba(255,0,0,.7);opacity:0}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .5s}
+#board{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));background:rgba(11,15,25,.7);border:1px solid #2A364F;border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.7;pointer-events:none;display:none;min-width:150px}
+#ov{position:fixed;inset:0;background:rgba(11,15,25,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;cursor:pointer;line-height:1.7}
+#ov h2{font-size:2rem;margin:0 0 8px;color:var(--yellow)}
+#ov p{margin:4px 0;font-size:.95rem}
+.btn{margin-top:14px;background:var(--orange);color:#111;font-weight:700;padding:10px 24px;border-radius:8px}
+button.m{background:var(--orange);color:#111;font-weight:700;font-size:1rem;padding:12px;border:0;border-radius:10px;cursor:pointer;font-family:inherit}
+button.m.alt{background:#2A364F;color:var(--text)}
+button.m:disabled{opacity:.4;cursor:not-allowed}
+.menu{display:flex;flex-direction:column;gap:10px;width:min(340px,88vw);margin-top:12px}
+.menu input{padding:10px;border-radius:8px;border:1px solid #2A364F;background:#0B0F19;color:var(--text);font-size:1rem;text-align:center;font-family:inherit}
+#opt{position:fixed;inset:0;background:rgba(11,15,25,.96);display:none;flex-direction:column;align-items:center;padding:20px;overflow:auto;z-index:5}
+#opt .tabs{display:flex;gap:6px;margin:8px 0}
+#opt .tabs button{padding:8px 14px;font-size:.9rem}
+#opt .row{display:flex;align-items:center;justify-content:space-between;gap:14px;width:min(440px,92vw);padding:8px 0;border-bottom:1px solid #2A364F;font-size:.9rem}
+#opt input[type=range]{width:160px}
+.kb{min-width:80px;padding:5px 10px;background:#2A364F;color:var(--yellow);border:1px solid #445;border-radius:6px;cursor:pointer;font-family:inherit}
+#homeBtn{position:fixed;left:50%;transform:translateX(-50%);top:calc(8px + env(safe-area-inset-top,0px));display:none;z-index:3;padding:6px 14px;font-size:12px;opacity:.8}
+</style>
+</head>
+<body>
+<canvas id="g"></canvas>
+<div id="hud"><div id="l"></div><div id="r"></div></div>
+<div id="board"></div>
+<div id="guide"><b>WASD</b>移動<br><b>Shift</b>走る<br><b>Space</b>ジャンプ<br><b>E</b>拾う・置く<br><b>V</b>叫ぶ（爆薬箱）<br><b>Q</b>突き飛ばす（近くの相手）<br><b>R</b>リスタート</div>
+<div id="cross"></div><div id="msg"></div><div id="flash"></div><div id="dmg"></div><div id="toasts"></div><div id="tut"></div>
+<div id="ov"></div>
+<div id="opt"></div>
+<button id="homeBtn" class="m alt">☰ ホーム (M)</button>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const cv=$('g'),ov=$('ov');
+const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9ec7e8);scene.fog=new THREE.Fog(0x9ec7e8,30,140);
+const cam=new THREE.PerspectiveCamera(72,1,.1,300);cam.rotation.order='YXZ';
+scene.add(new THREE.HemisphereLight(0xffffff,0x556655,.9));
+const sun=new THREE.DirectionalLight(0xffffff,.8);sun.position.set(30,60,20);scene.add(sun);
+function resize(){ren.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+
+// ---- terrain ----
+const SPOTS=[[0,-150],[-16,-153],[16,-148],[-8,-163],[11,-165],[-18,-142]];
+const TSPOT=[0,-40];
+const spotFlat=(x,z)=>{let m=1;for(const s of SPOTS.concat([TSPOT])){const dx=x-s[0],dz=z-s[1],ex=Math.max(Math.abs(dx)-10,0),ez=dz<-14?-14-dz:dz>6?dz-6:0;m=Math.min(m,Math.min(1,Math.hypot(ex,ez)/6))}return m};
+const base=(x,z)=>{const d=spotFlat(x,z)*Math.min(1,Math.hypot(x,z)/14)*Math.min(1,Math.min(Math.abs(z+105),Math.abs(z+128),Math.abs(z+45),Math.abs(z+85))/9);
+  return (3*Math.sin(x/9)*Math.cos(z/11)+1.5*Math.sin(z/4.3+x/7)+(z<-40?1.2*Math.sin(x/2.7)*Math.sin(z/3.1):0))*d};
+const BA=base(0,-61),BB=base(0,-77),deck=z=>BA+(BB-BA)*((z+61)/-16);
+const tr=z=>z>-61?0:z>-62?-61-z:z>-76?1:z>-77?z+77:0;
+const PITS=[[-9,-32,2.6],[10,-52,2.6],[-13,-92,2.8],[8,-116,2.8],[-4,-135,2.6],[22,-28,2.6],[-22,-110,2.6]];
+const pitAt=(x,z)=>{let m=0;for(const p of PITS){const d=Math.hypot(x-p[0],z-p[1]);m=Math.max(m,d<=p[2]?1:d<p[2]+1?p[2]+1-d:0)}return m};
+const gt=(x,z)=>{const t=tr(z),hh=t===0?base(x,z):base(x,z)*(1-t)-8*t;return hh-5*pitAt(x,z)};
+const gh=(x,z)=>(z<=-61&&z>=-77&&Math.abs(x)<=1.2)?deck(z):gt(x,z);
+{const g=new THREE.PlaneGeometry(120,200,120,200);g.rotateX(-Math.PI/2);g.translate(0,0,-80);
+ const p=g.attributes.position;for(let i=0;i<p.count;i++)p.setY(i,gt(p.getX(i),p.getZ(i)));
+ g.computeVertexNormals();
+ scene.add(new THREE.Mesh(g,new THREE.MeshPhongMaterial({color:0x5c8a4a,specular:0x000000,flatShading:true})));}
+const box=(w,h,d,c,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:c}));m.position.set(x,y,z);scene.add(m);return m};
+{const mid=(BA+BB)/2-.1,rx=Math.atan2(BB-BA,16),dm=new THREE.Mesh(new THREE.BoxGeometry(2.4,.2,16.4),new THREE.MeshLambertMaterial({color:0x8a6a3a}));dm.position.set(0,mid,-69);dm.rotation.x=rx;scene.add(dm);
+ for(const sx of[-1.15,1.15]){const e=new THREE.Mesh(new THREE.BoxGeometry(.14,.16,16.4),new THREE.MeshLambertMaterial({color:0x5a4125}));e.position.set(sx,mid+.15,-69);e.rotation.x=rx;scene.add(e)}}                 // bridge
+box(3.4,2.2,6,0xFF5E00,0,gh(0,5)+1.1,5);box(2.6,1.8,2.2,0xe2e8f0,0,gh(0,8.5)+1,8.5); // truck
+for(let i=0;i<25;i++){const x=(Math.random()-.5)*100,z=-10-Math.random()*150;if(Math.abs(x)<5||(z<-60&&z>-78))continue;
+  const y=gh(x,z);box(.5,3,.5,0x6b4a2a,x,y+1.5,z);box(2.4,2.4,2.4,0x2f6a3a,x,y+3.6,z)}
+let GX=0,GZ=-150,gy=gh(0,GZ);
+const house=new THREE.Group();scene.add(house);
+{const hm=(w,h,d,c,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:c}));m.position.set(x,y,z);house.add(m)};
+ hm(10.4,3,6.4,0x888888,0,-.5,-9);hm(10,5,6,0xd9c9a3,0,2.5,-9);hm(1.4,2.6,.2,0x7a3b1b,0,1.3,-5.9);hm(11,.6,7,0x8a3b2b,0,5.3,-9)}
+const ring=new THREE.Mesh(new THREE.CylinderGeometry(4,4,.15,32),new THREE.MeshBasicMaterial({color:0xFFD700,transparent:true,opacity:.5}));
+ring.position.set(0,gy+.1,GZ);scene.add(ring);
+const beam=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,70,10,1,true),new THREE.MeshBasicMaterial({color:0xFFD700,transparent:true,opacity:.3,fog:false,depthWrite:false,side:THREE.DoubleSide}));beam.position.y=35;ring.add(beam);
+
+// ---- state ----
+// ---- settings / audio ----
+let roomNS,roomCode='',mode='single',runT=false,optTab='a',rebind=null,died=false,specI=0,inv=0;
+const cleanName=s=>String(s==null?'':s).replace(/[<>&"'`\\]/g,'').trim().slice(0,12);
+let myName='';try{myName=cleanName(localStorage.getItem('rd_name')||'')}catch(e){}
+const DEF={vol:.8,se:.8,bgm:.4,mic:1,sens:1,inv:false,tog:false,kPick:'KeyE',kShout:'KeyV',kShove:'KeyQ',fov:72,hud:1,guide:true,cross:true,board:true};
+let S={...DEF};try{Object.assign(S,JSON.parse(localStorage.getItem('rd_opt')||'{}'))}catch(e){}
+const saveS=()=>{try{localStorage.setItem('rd_opt',JSON.stringify(S))}catch(e){}saveProfile()};
+const kn=c=>String(c).replace('Key','').replace('Digit','');
+function applyUI(){
+  $('guide').style.display=S.guide?'block':'none';$('cross').style.display=S.cross?'block':'none';
+  $('hud').style.zoom=S.hud;$('guide').style.zoom=S.hud;$('board').style.zoom=S.hud;
+  cam.fov=S.fov;cam.updateProjectionMatrix();
+  $('guide').innerHTML=`<b>WASD</b>移動<br><b>Shift</b>走る<br><b>Space</b>ジャンプ<br><b>${kn(S.kPick)}</b>拾う・置く<br><b>${kn(S.kShout)}</b>叫ぶ（爆薬箱）<br><b>${kn(S.kShove)}</b>突き飛ばす（近くの相手）<br><b>R</b>リスタート<br><b>P</b>ポーズ<br><b>M</b>ホームへ`;
+}
+let AC=null,bgmT=null,bgmI=0;
+function actx(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC}
+function tone(f,d,type,v,slide){const a=actx();if(!a||v<=0)return;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;
+  if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),a.currentTime+d);
+  g.gain.value=v;g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+d);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+d)}
+const beep=(f,d,type,v,slide)=>tone(f,d,type,v*S.vol*S.se,slide);
+const SE={pick:()=>beep(660,.1,'square',.25),drop:()=>beep(220,.1,'triangle',.3),ok:()=>{beep(784,.12,'square',.3);setTimeout(()=>beep(1046,.2,'square',.3),110)},break:()=>beep(900,.3,'sawtooth',.3,-800),boom:()=>beep(160,.7,'sawtooth',.5,-120),shove:()=>beep(300,.15,'square',.3,-150)};
+const NOTES=[262,330,392,330,294,370,440,370,262,330,392,523,440,392,330,294];
+function bgm(on){clearInterval(bgmT);bgmT=null;if(on)bgmT=setInterval(()=>tone(NOTES[bgmI++%NOTES.length],.22,'triangle',.12*S.vol*S.bgm),240)}
+const K={},P={x:0,y:0,z:0,vx:0,vy:0,vz:0,yaw:0,pitch:0,g:true};
+let state='ready',items=[],held=null,meter=0,tLeft=0,mic=null,micOn=false,level=0,msgT=0,ptr=false,drag=false;
+const TYPES={fragile:{c:0x7fd4ff,s:.55,e:'🍷割れ物'},bomb:{c:0xd02030,s:.52,e:'💣爆薬箱'},tuna:{c:0x6f8fa8,s:.34,e:'🐟マグロ'}};
+function say(t){$('msg').textContent=t;msgT=2.5}
+// ---- realistic models ----
+function makeModel(t){
+  const g=new THREE.Group();g.rotation.order='YXZ';
+  const M=(c,o)=>new THREE.MeshPhongMaterial(Object.assign({color:c,shininess:60},o||{}));
+  const add=(p,geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x||0,y||0,z||0);p.add(m);return m};
+  const V=a=>a.map(q=>new THREE.Vector2(q[0],q[1]));
+  if(t==='fragile'){
+    add(g,new THREE.LatheGeometry(V([[0,0],[.13,0],[.13,.01],[.04,.03],[.012,.06],[.012,.2],[.03,.23],[.08,.28],[.1,.35],[.09,.43],[.075,.52]]),28),M(0xcfe9ff,{transparent:true,opacity:.38,shininess:150,specular:0xffffff,side:THREE.DoubleSide,depthWrite:false}),0,-.26,0);
+    add(g,new THREE.LatheGeometry(V([[0,.25],[.07,.28],[.093,.35],[.088,.39],[0,.39]]),24),M(0x7a0b1e,{shininess:90,specular:0x886666,side:THREE.DoubleSide}),0,-.26,0);
+  }else if(t==='bomb'){
+    const body=add(g,new THREE.SphereGeometry(.26,28,20),M(0x1b1b22,{specular:0x9999aa,shininess:90}));
+    add(g,new THREE.CylinderGeometry(.07,.085,.09,16),M(0x5a606e,{specular:0xcccccc,shininess:100}),0,.28,0);
+    const ring=add(g,new THREE.TorusGeometry(.075,.015,8,16),M(0x444a55,{specular:0xaaaaaa}),0,.335,0);ring.rotation.x=Math.PI/2;
+    const cv2=new THREE.CatmullRomCurve3([new THREE.Vector3(0,.33,0),new THREE.Vector3(.06,.42,0),new THREE.Vector3(.03,.5,.03),new THREE.Vector3(.1,.57,0)]);
+    add(g,new THREE.TubeGeometry(cv2,16,.012,6),M(0xc9a063,{shininess:10}));
+    const core=add(g,new THREE.SphereGeometry(.03,10,10),new THREE.MeshBasicMaterial({color:0xffe27a}),.1,.58,0);
+    const halo=add(g,new THREE.SphereGeometry(.06,10,10),new THREE.MeshBasicMaterial({color:0xff6a00,transparent:true,opacity:.5,depthWrite:false}),.1,.58,0);
+    g.userData={body,spark:{core,halo}};
+  }else{
+    const bg=new THREE.SphereGeometry(1,28,18),cols=[],p=bg.attributes.position,A=new THREE.Color(0x15325e),B=new THREE.Color(0xe3eaf2),C=new THREE.Color();
+    for(let k=0;k<p.count;k++){const u=Math.max(0,Math.min(1,(p.getY(k)+.35)/.9));C.copy(B).lerp(A,u);cols.push(C.r,C.g,C.b)}
+    bg.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
+    const body=add(g,bg,M(0xffffff,{vertexColors:true,shininess:90,specular:0x99aabb}));body.scale.set(.16,.19,.46);
+    const dk=M(0x15325e,{shininess:40}),yl=M(0xffd21a,{shininess:40});
+    const tail=new THREE.Group();tail.position.set(0,0,.44);g.add(tail);
+    const pg=new THREE.ConeGeometry(.07,.2,12);pg.rotateX(Math.PI/2);pg.translate(0,0,.1);add(tail,pg,dk);
+    add(tail,new THREE.BoxGeometry(.02,.26,.1),dk,0,.07,.2).rotation.x=.5;
+    add(tail,new THREE.BoxGeometry(.02,.26,.1),dk,0,-.07,.2).rotation.x=-.5;
+    add(g,new THREE.BoxGeometry(.015,.14,.2),dk,0,.2,.02).rotation.x=.3;
+    add(g,new THREE.BoxGeometry(.012,.08,.1),dk,0,.17,.2).rotation.x=.3;
+    for(let k=0;k<5;k++)add(g,new THREE.BoxGeometry(.01,.035,.04),yl,0,.115-k*.012,.25+k*.04);
+    for(const sx of[-1,1]){add(g,new THREE.BoxGeometry(.14,.015,.1),dk,sx*.15,-.08,-.12).rotation.z=sx*.5;
+      add(g,new THREE.SphereGeometry(.025,10,10),M(0x050505,{shininess:150,specular:0xffffff}),sx*.115,.04,-.34)}
+    g.userData={tail};
+  }
+  return g;
+}
+function animItem(i,dt){
+  const m=i.m,u=m.userData,now=performance.now();
+  if(i.t==='tuna'){
+    const sp=Math.hypot(i.vx,i.vz),fr=i!==held,air=i.y>gh(i.x,i.z)+i.s/2+.05;
+    let want=m.rotation.y;if(!fr)want=P.yaw;else if(sp>.6)want=Math.atan2(-i.vx,-i.vz);
+    let d=want-m.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));m.rotation.y+=d*Math.min(1,10*dt);
+    i.wag=(i.wag||0)+dt*(!fr?(i.esc<2?32:15):(sp>.6||air)?22:7);
+    u.tail.rotation.y=Math.sin(i.wag)*.55;
+    m.rotation.z=Math.sin(i.wag*.5)*(!fr?.18:air?.25:.1);
+    m.rotation.x=fr?Math.max(-.6,Math.min(.6,i.vy*.06)):0;
+  }else if(i.t==='bomb'){
+    const k=1+meter*2.5;u.spark.core.scale.setScalar((.8+Math.random()*.6)*k);u.spark.halo.scale.setScalar((.8+Math.random()*.8)*k);
+    u.body.material.emissive.setRGB(meter*.7,meter*.05,0);
+    m.rotation.z=meter>.5?Math.sin(now/40)*.05*meter:0;
+  }else{
+    m.rotation.z=i===held?Math.sin(now/35)*i.stress*.15:0;
+  }
+}
+function reset(){
+  Object.assign(P,{x:0,y:gh(0,0),z:0,vx:0,vy:0,vz:0,yaw:0,pitch:0,hp:100});inv=0;
+  MINES.forEach(m=>{m.on=!!m.en;m.m.visible=!!m.en});KITS.forEach(k=>{k.on=!!k.en;k.g.visible=!!k.en});
+  items.forEach(i=>scene.remove(i.m));items=[];held=null;meter=0;boomTarget=null;tLeft=mode==='single'?(tutOn?900:STAGES[stage].time):170;
+  (wolfMode?W9:mode==='coop'?[['fragile',-2.5,-3],['bomb',0,-3],['tuna',2.5,-3],['fragile',-1.25,-5],['bomb',1.25,-5],['tuna',3.75,-5]]:mode==='single'?(tutOn?TUTCFG.items:STAGES[stage].items):[['fragile',-2.5,-3],['bomb',0,-3],['tuna',2.5,-3]]).forEach(([t,x,z0],id)=>{
+    const z=z0,s=TYPES[t].s,m=makeModel(t);m.position.set(x,0,z);scene.add(m);
+    items.push({id,own:true,seen:performance.now(),sx:x,sz:z,gen:0,rt:0,t,m,s,x,y:gh(x,z)+s/2,z,vx:0,vy:0,vz:0,alive:true,done:false,stress:0,slip:0,hop:1})});
+}
+function kill(i,why){if(!i.alive)return;i.alive=false;i.m.visible=false;if(held===i)held=null;(why==='爆発'?SE.boom:SE.break)();say(TYPES[i.t].e+' '+why+'！');notifyLost(i,why)}
+function flash(){const f=$('flash');f.style.transition='none';f.style.opacity=.9;requestAnimationFrame(()=>{f.style.transition='opacity .6s';f.style.opacity=0})}
+
+// ---- visible boundary walls ----
+const BW=[];
+{const c=document.createElement('canvas');c.width=c.height=64;const g2=c.getContext('2d');g2.strokeStyle='rgba(0,240,255,.9)';g2.lineWidth=3;g2.strokeRect(0,0,64,64);
+ const mk=(w,axis,px,pz,ry)=>{const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(w/4,30/4);
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,30),new THREE.MeshBasicMaterial({map:t,transparent:true,opacity:.25,side:THREE.DoubleSide,depthWrite:false}));
+  m.position.set(px,0,pz);m.rotation.y=ry;scene.add(m);BW.push({m,axis,v:axis==='x'?px:pz})};
+ mk(185,'x',-28.1,-82.5,Math.PI/2);mk(185,'x',28.1,-82.5,Math.PI/2);mk(56.2,'z',0,10.1,0);mk(56.2,'z',0,-175.1,0)}
+function boundary(){for(const b of BW){const d=b.axis==='x'?Math.abs(b.v-P.x):Math.abs(b.v-P.z);b.m.material.opacity=.2+.55*Math.max(0,1-d/8)}}
+// ---- terrain-conforming helpers ----
+function conformRing(cx,cz,r0,r1,seg,rings,off){
+  const g=new THREE.RingGeometry(r0,r1,seg,rings);g.rotateX(-Math.PI/2);const p=g.attributes.position;
+  for(let i=0;i<p.count;i++){const wx=cx+p.getX(i),wz=cz+p.getZ(i);p.setX(i,wx);p.setZ(i,wz);p.setY(i,gh(wx,wz)+off)}
+  g.computeVertexNormals();return g}
+function conformPlane(cx,cz,w,l,sx,sz,off){
+  const g=new THREE.PlaneGeometry(w,l,sx,sz);g.rotateX(-Math.PI/2);const p=g.attributes.position;
+  for(let i=0;i<p.count;i++){const wx=cx+p.getX(i),wz=cz+p.getZ(i);p.setX(i,wx);p.setZ(i,wz);p.setY(i,gh(wx,wz)+off)}
+  g.computeVertexNormals();return g}
+function normalAt(x,z){return new THREE.Vector3(gh(x-.5,z)-gh(x+.5,z),1,gh(x,z-.5)-gh(x,z+.5)).normalize()}
+// ---- traps ----
+let onOil=false,barCd=0;
+const MINES=[],OILS=[],BARS=[];
+{let sd=20261107;const rnd=()=>(sd=(Math.imul(sd,1664525)+1013904223)>>>0)/4294967296;
+ const free=z=>!(z<-58&&z>-80)&&!(z<-144);
+ let n=0;
+ while(MINES.length<24&&n++<700){const x=MINES.length%2?(rnd()<.5?-1:1)*(16+rnd()*10):(rnd()-.5)*30,z=-18-rnd()*125;if(!free(z))continue;
+  const m=new THREE.Group(),y=gh(x,z);
+  const dsk=new THREE.Mesh(new THREE.CylinderGeometry(.4,.45,.1,16),new THREE.MeshPhongMaterial({color:0x3a3f4a,shininess:60}));dsk.position.y=.05;m.add(dsk);
+  const l=new THREE.Mesh(new THREE.SphereGeometry(.08,10,10),new THREE.MeshBasicMaterial({color:0xff2020}));l.position.y=.14;m.add(l);
+  m.position.set(x,y-.02,z);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),normalAt(x,z));scene.add(m);MINES.push({x,z,m,l,on:true})}
+ n=0;
+ for(const p of PITS){if(OILS.length>=7)break;const r=3.2+rnd()*1.8,x=Math.max(-24,Math.min(24,p[0])),z=p[1]+p[2]+r*.6;
+  const og=conformRing(x,z,.01,r,32,6,.05),o=new THREE.Mesh(og,new THREE.MeshPhongMaterial({color:0x14141c,specular:0xaaaaff,shininess:150,transparent:true,opacity:.92,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  scene.add(o);OILS.push({x,z,r,o})}
+ while(OILS.length<10&&n++<400){const x=OILS.length%2?(rnd()<.5?-1:1)*(15+rnd()*9):(rnd()-.5)*28,z=-15-rnd()*125;if(!free(z))continue;const r=3.2+rnd()*1.8;
+  const og=conformRing(x,z,.01,r,32,6,.05);
+  const o=new THREE.Mesh(og,new THREE.MeshPhongMaterial({color:0x14141c,specular:0xaaaaff,shininess:150,transparent:true,opacity:.92,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  scene.add(o);OILS.push({x,z,r,o})}
+ for(const z of[-105,-128]){const y=gh(0,z),g=new THREE.Group();
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,2,10),new THREE.MeshLambertMaterial({color:0x555555}));pole.position.y=1;g.add(pole);
+  const bar=new THREE.Mesh(new THREE.BoxGeometry(18,.35,.35),new THREE.MeshLambertMaterial({color:0xFF5E00}));bar.position.y=.5;g.add(bar);
+  for(let k=-4;k<=4;k++)if(k){const s=new THREE.Mesh(new THREE.BoxGeometry(.9,.37,.37),new THREE.MeshLambertMaterial({color:0xffffff}));s.position.set(k*2,.5,0);g.add(s)}
+  g.position.set(0,y,z);scene.add(g);BARS.push({x:0,z,y,g,w:z===-105?1.1:-1.3})}
+}
+function traps(dt){
+  const t=performance.now()/1000;barCd-=dt;onOil=false;
+  for(const o of OILS)if(o.en&&P.g&&Math.hypot(P.x-o.x,P.z-o.z)<o.r){onOil=true;break}
+  for(const m of MINES){if(!m.on)continue;
+    m.l.material.color.setHex(Math.sin(t*6)>0?0xff2020:0x550000);
+    if(Math.hypot(P.x-m.x,P.z-m.z)<.55&&P.y<gh(m.x,m.z)+.4){
+      m.on=false;m.m.visible=false;flash();SE.boom();
+      const dx=P.x-m.x,dz=P.z-m.z,l=Math.hypot(dx,dz)||1;P.vx+=dx/l*9;P.vz+=dz/l*9;P.vy=7;P.g=false;
+      if(held&&held.t==='fragile')held.stress+=.6;
+      const nb=items.filter(i=>i.alive&&!i.done&&i.t==='bomb'&&(i===held||Math.hypot(i.x-m.x,i.z-m.z)<5)).sort((a,b)=>Math.hypot(a.x-m.x,a.z-m.z)-Math.hypot(b.x-m.x,b.z-m.z))[0];
+      if(nb&&(mode!=='coop'||nb.own||nb===held)){boomTarget=nb;meter=1.5}
+      say('💣 地雷を踏んだ！');hurt(35,'地雷')}}
+  for(const b of BARS){if(!b.en)continue;const a=t*b.w;b.g.rotation.y=a;
+    if(barCd>0)continue;
+    const cx=Math.cos(a),cz=-Math.sin(a),rx=P.x-b.x,rz=P.z-b.z,proj=rx*cx+rz*cz,sp=rx*(-cz)+rz*cx,by=b.y+.5;
+    if(Math.abs(proj)<9&&Math.abs(sp)<.7&&P.y+1.8>by-.2&&P.y<by+.2){
+      const sg=sp>=0?1:-1;P.vx+=-cz*sg*11;P.vz+=cx*sg*11;P.vy=4;P.g=false;barCd=.7;SE.shove();
+      if(held&&held.t==='fragile')held.stress+=.5;
+      say('🪵 回転バーに当たった！ジャンプで飛び越えよう');hurt(20,'回転バー')}}
+}
+// ---- traps 2 ----
+const stripe=(rx,ry)=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');x.fillStyle='#2a2a2a';x.fillRect(0,0,64,64);x.fillStyle='#FFD700';for(let k=0;k<4;k++)x.fillRect(0,k*16,64,8);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);return t};
+const SPIKES=[],WALLS=[],BELTS=[];let wallCd=0,spCd=0,onBelt=false;
+{let sd=777;const rnd=()=>(sd=(Math.imul(sd,1664525)+1013904223)>>>0)/4294967296;
+ const free=z=>!(z<-58&&z>-80)&&z>-144&&z<-12;
+ for(const p of PITS){const r=new THREE.Mesh(conformRing(p[0],p[1],p[2]+.2,p[2]+.8,40,2,.1),new THREE.MeshBasicMaterial({color:0xFFD700,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));scene.add(r)}
+ let n=0;
+ while(SPIKES.length<8&&n++<400){const x=SPIKES.length%2?(rnd()<.5?-1:1)*(16+rnd()*9):(rnd()-.5)*28,z=-20-rnd()*120;if(!free(z)||PITS.some(p=>Math.hypot(p[0]-x,p[1]-z)<7))continue;
+  const y=gh(x,z),g=new THREE.Group();
+  const plate=new THREE.Mesh(conformPlane(x,z,3.4,3.4,6,6,.06),new THREE.MeshPhongMaterial({color:0x333333,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));scene.add(plate);
+  const cg=new THREE.ConeGeometry(.16,.9,8);cg.translate(0,.45,0);const cones=[];
+  for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){const c=new THREE.Mesh(cg,new THREE.MeshPhongMaterial({color:0xcfd4dc,shininess:100,specular:0xffffff}));c.position.set(x+i,gh(x+i,z+j)+.04,z+j);c.scale.y=.05;g.add(c);cones.push(c)}
+  scene.add(g);SPIKES.push({x,z,y,g,plate,cones,k:.05,ph:rnd()*4})}
+ for(const z of[-45,-85]){const y=gh(0,z),m=new THREE.Mesh(new THREE.BoxGeometry(6,3,.8),new THREE.MeshLambertMaterial({map:stripe(2,1)}));
+  m.position.set(0,y+1,z);scene.add(m);WALLS.push({z,y,m,ph:rnd()*6})}
+ for(const [x,z,v] of [[-6,-28,4],[10,-98,4]]){const w=8,l=12,tex=stripe(1,3);
+  const m=new THREE.Mesh(conformPlane(x,z,w,l,8,12,.05),new THREE.MeshLambertMaterial({map:tex,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));scene.add(m);BELTS.push({x,z,w,l,v,tex,m})}
+}
+function traps2(dt){
+  const t=performance.now()/1000;wallCd-=dt;spCd-=dt;const wasOn=onBelt;onBelt=false;
+  for(const b of BELTS){if(!b.en)continue;b.tex.offset.y+=dt*b.v/4;if(P.g&&Math.abs(P.x-b.x)<b.w/2&&Math.abs(P.z-b.z)<b.l/2){onBelt=true;P.z+=Math.max(0,b.v-Math.max(0,P.vz))*dt}}
+  if(onBelt&&!wasOn)say('⏩ ベルトの上ではダッシュできない！');
+  for(const s of SPIKES){if(!s.en)continue;const u=(t+s.ph)%4,up=u>2.7,warn=u>2&&u<=2.7;
+    s.k+=((up?1:.05)-s.k)*Math.min(1,14*dt);for(const c of s.cones)c.scale.y=s.k;
+    s.plate.material.color.setHex(warn&&Math.sin(t*20)>0?0xcc2222:0x333333);
+    if(up&&spCd<=0&&Math.abs(P.x-s.x)<1.6&&Math.abs(P.z-s.z)<1.6&&P.y<gh(P.x,P.z)+.7){spCd=.8;P.vy=7;P.g=false;SE.shove();if(held&&held.t==='fragile')held.stress+=.5;say('🔪 スパイクに刺された！');hurt(25,'スパイク')}}
+  for(const w of WALLS){if(!w.en)continue;const wx=11*Math.sin(t*.8+w.ph);w.m.position.x=wx;
+    if(wallCd<=0&&Math.abs(P.x-wx)<3.4&&Math.abs(P.z-w.z)<.9&&P.y<w.y+2.5&&P.y+1.8>w.y-.5){
+      const sg=P.z>=w.z?1:-1;P.z=w.z+sg*1.3;P.vz+=sg*13;P.vy=3.5;P.g=false;wallCd=.7;SE.shove();
+      if(held&&held.t==='fragile')held.stress+=.5;say('🧱 動く壁にぶつかった！');hurt(20,'動く壁')}}
+  const pit=PITS.find(p=>Math.hypot(P.x-p[0],P.z-p[1])<=p[2]+1&&pitAt(P.x,P.z)>.9&&P.y<base(P.x,P.z)-2.5);
+  if(pit){P.x=pit[0];P.z=pit[1]+pit[2]+3;P.y=gh(P.x,P.z);P.vx=P.vy=P.vz=0;P.g=true;if(held&&held.t==='fragile')kill(held,'落とした');say('🕳 落とし穴に落ちた！');hurt(999,'落とし穴')}
+}
+// ---- stages (single player) ----
+let stage=0,prog=[];try{prog=JSON.parse(localStorage.getItem('rd_prog')||'[]')}catch(e){}
+const unlocked=i=>i===0||(prog[i-1]||0)>0;
+const I3=[['fragile',-2.5,-3],['bomb',0,-3],['tuna',2.5,-3]],I2=[['fragile',-1.5,-3],['tuna',1.5,-3]],I4=I3.concat([['fragile',-1.25,-5]]),I5=I4.concat([['tuna',1.25,-5]]),I6=I5.concat([['bomb',3.75,-5]]);
+const STAGES=[
+ {n:'1 はじめての配達',time:200,mines:3,oil:2,spikes:0,belts:0,walls:false,bars:false,kits:4,items:I2,sky:0x9ec7e8,fog:140},
+ {n:'2 ぬるぬる地帯',time:190,mines:6,oil:10,spikes:0,belts:1,walls:false,bars:false,kits:4,items:I3,sky:0xa9c7b0,fog:120},
+ {n:'3 トゲとベルト',time:180,mines:10,oil:5,spikes:8,belts:2,walls:false,bars:false,kits:3,items:I3,sky:0xe8c89e,fog:110},
+ {n:'4 動く壁の道',time:175,mines:14,oil:6,spikes:5,belts:2,walls:true,bars:false,kits:3,items:I4,sky:0xc8b8d8,fog:100},
+ {n:'5 回転バーの迷宮',time:170,mines:18,oil:8,spikes:8,belts:2,walls:true,bars:true,kits:3,items:I5,sky:0x6a7a9a,fog:90},
+ {n:'6 地獄の宅配便',time:160,mines:24,oil:10,spikes:8,belts:2,walls:true,bars:true,kits:2,items:I6,sky:0x2a1a2a,fog:70}];
+const FULL={mines:24,oil:10,spikes:8,belts:2,walls:true,bars:true,kits:4,sky:0x9ec7e8,fog:140};
+function applyStage(c){
+  MINES.forEach((m,i)=>{m.en=m.tut?!!c.tut:i<c.mines;m.on=m.en;m.m.visible=m.en});
+  OILS.forEach((o,i)=>{o.en=o.tut?!!c.tut:i<c.oil;o.o.visible=o.en});
+  SPIKES.forEach((s,i)=>{s.en=i<c.spikes;s.g.visible=s.en;s.plate.visible=s.en});
+  BELTS.forEach((b,i)=>{b.en=i<c.belts;b.m.visible=b.en});
+  WALLS.forEach(w=>{w.en=c.walls;w.m.visible=c.walls});
+  BARS.forEach(b=>{b.en=c.bars;b.g.visible=c.bars});
+  KITS.forEach((k,i)=>{k.en=i<c.kits});
+  scene.background.setHex(c.sky);scene.fog.color.setHex(c.sky);scene.fog.far=c.fog}
+// ---- moving delivery spot ----
+let plan=[],curSpot=-1,nextAt=99;
+function planGoal(){
+  let sd=(myRd>>>0)||1;const rnd=()=>(sd=(Math.imul(sd,1664525)+1013904223)>>>0)/4294967296;
+  plan=[];let t=0,last=-1;
+  for(let k=0;k<30;k++){let i;do{i=Math.floor(rnd()*SPOTS.length)}while(i===last);plan.push({t,i});last=i;t+=18+rnd()*22}
+  plan.push({t,i:-1});curSpot=-1;goalUpdate()}
+function goalUpdate(){
+  if(tutOn){if(curSpot!==-2){curSpot=-2;GX=TSPOT[0];GZ=TSPOT[1];gy=Math.max(gh(GX,GZ),gh(GX+4,GZ),gh(GX-4,GZ),gh(GX,GZ+4),gh(GX,GZ-4));house.position.set(GX,gy,GZ);ring.position.set(GX,gy+.15,GZ)}nextAt=99;ring.material.opacity=.5;return}
+  const el=(Date.now()-(myRd||Date.now()))/1000;let k=0;while(k<plan.length-2&&plan[k+1].t<=el)k++;
+  const sp=plan[k].i;
+  if(sp!==curSpot){const first=curSpot===-1;curSpot=sp;GX=SPOTS[sp][0];GZ=SPOTS[sp][1];
+    gy=Math.max(gh(GX,GZ),gh(GX+4,GZ),gh(GX-4,GZ),gh(GX,GZ+4),gh(GX,GZ-4));
+    house.position.set(GX,gy,GZ);ring.position.set(GX,gy+.15,GZ);
+    if(!first&&state==='play'){say('📦 配達先が移動した！');SE.ok()}}
+  nextAt=plan[k+1].t-el;
+  ring.material.opacity=nextAt<4?.25+.35*Math.abs(Math.sin(el*8)):.5;
+}
+const goalIn=()=>Math.max(0,Math.ceil(nextAt));
+function goalArrow(){
+  const ang=Math.atan2(-(GX-P.x),-(GZ-P.z));let d=ang-P.yaw;d=Math.atan2(Math.sin(d),Math.cos(d));
+  return ['⬆','↗','➡','↘','⬇','↙','⬅','↖'][((Math.round(-d/(Math.PI/4))%8)+8)%8]}
+function notify(t,k){const c=$('toasts'),d=document.createElement('div');d.className='toast'+(k?' '+k:'');d.textContent=t;c.appendChild(d);while(c.children.length>4)c.firstChild.remove();
+  setTimeout(()=>{d.style.transition='opacity .6s';d.style.opacity=0;setTimeout(()=>d.remove(),700)},4500)}
+function notifyLost(i,why){const left=items.filter(x=>x.alive&&!x.done).length;
+  notify('❌ '+TYPES[i.t].e+(why?'（'+why+'）':'')+' 配達できなくなりました'+(mode==='coop'&&!wolfMode?'（3秒後に補充）':' — 残り'+left+'個'))}
+// ---- database: results / ranking ----
+let dbNS=undefined,myUid=null,savedRound=false,rankTab='st',rankData=null;
+(async()=>{try{if(!window.claude||!claude.use){dbNS=null;refreshHome();return}
+  dbNS=(await claude.use('db'))||null;await autoLogin()}catch(e){dbNS=dbNS||null}if(dbNS===undefined)dbNS=null;refreshHome()})();
+async function saveResult(iw){
+  if(savedRound||!dbNS||!myUid||!myName)return;savedRound=true;
+  try{
+    const ref=dbNS.doc('scores/'+myUid),snap=await ref.get(),o=snap.exists?(snap.data()||{}):{};
+    const st=Object.assign({},o.st||{}),co=Object.assign({best:0,plays:0},o.co||{}),vs=Object.assign({best:0,plays:0},o.vs||{}),wf=Object.assign({wins:0,plays:0},o.wf||{});
+    const n=items.filter(i=>i.alive&&i.done).length;
+    if(mode==='single'){if(!died&&n>0)st[stage]=Math.max(st[stage]|0,Math.max(1,Math.round(3*n/items.length)))}
+    else if(wolfMode){wf.plays++;if(iw)wf.wins++}
+    else if(mode==='coop'){co.plays++;co.best=Math.max(co.best,teamScore())}
+    else if(mode==='versus'){vs.plays++;vs.best=Math.max(vs.best,n)}
+    await ref.set({nm:myName,st,co,vs,wf,up:Date.now()});
+    notify('📊 記録をランキングに送信しました','info');
+  }catch(e){}
+}
+function rkScore(t,d){if(t==='st')return Object.values(d.st||{}).reduce((a,b)=>a+(b|0),0);if(t==='co')return (d.co||{}).best|0;if(t==='vs')return (d.vs||{}).best|0;return ((d.wf||{}).wins|0)*1000-((d.wf||{}).plays|0)}
+function rkLabel(t,d){if(t==='st')return '★'+rkScore('st',d)+'（'+Object.keys(d.st||{}).length+'/'+STAGES.length+'）';if(t==='co')return ((d.co||{}).best|0)+'個';if(t==='vs')return ((d.vs||{}).best|0)+'個';return ((d.wf||{}).wins|0)+'勝 / '+((d.wf||{}).plays|0)+'戦'}
+async function openRank(again){
+  const o=$('opt');o.style.display='flex';
+  const tabs=[['st','🚚 シングル'],['co','🤝 協力'],['vs','⚔ 対戦'],['wf','🐺 人狼']];
+  o.innerHTML=`<h2 style="color:var(--yellow);margin:4px 0">🏆 ランキング</h2><div class="tabs">${tabs.map(([k,l])=>`<button class="m ${k===rankTab?'':'alt'}" data-rt="${k}">${l}</button>`).join('')}</div><div id="rkbody" style="width:min(440px,92vw);line-height:1.8;font-size:.9rem">読み込み中…</div><div class="menu"><button class="m" id="rkBack">戻る</button></div>`;
+  $('rkBack').onclick=()=>{o.style.display='none'};
+  o.querySelectorAll('[data-rt]').forEach(b=>b.onclick=()=>{rankTab=b.dataset.rt;openRank(true)});
+  const show=()=>{const b=$('rkbody');if(!b)return;
+    if(!dbNS){b.textContent='ランキングは、サインイン中のメンバー／招待ゲストのみ利用できます';return}
+    if(!rankData){b.textContent='読み込み中…';return}
+    const rows=rankData.filter(r=>rkScore(rankTab,r.d)>0).sort((x,y)=>rkScore(rankTab,y.d)-rkScore(rankTab,x.d));
+    b.innerHTML=rows.slice(0,20).map((r,i)=>`${['🥇','🥈','🥉'][i]||(i+1)+'.'} ${r.id===myUid?'<b>':''}${cleanName(r.d.nm)||'名無し'}${r.id===myUid?'</b>':''}　${rkLabel(rankTab,r.d)}`).join('<br>')||'まだ記録がありません'};
+  if(!again&&dbNS){rankData=null;const tm=setTimeout(()=>{if(!rankData){const b=$('rkbody');if(b)b.textContent='読み込みに失敗しました'}},10000);
+    try{const s=await dbNS.collection('scores').get();rankData=s.docs.map(d=>({id:d.id,d:d.data()||{}}))}catch(e){const b=$('rkbody');if(b)b.textContent='読み込みに失敗しました'}
+    clearTimeout(tm)}
+  show()}
+// ---- game accounts (ID / password, stored in db) ----
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+async function hashPw(pw,salt){const enc=new TextEncoder(),k=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveBits']);
+  return hex(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:enc.encode(salt),iterations:120000},k,256))}
+async function doReg(id,pw){const key=id.toLowerCase(),ref=dbNS.doc('accounts/'+key);
+  if((await ref.get()).exists)throw new Error('そのIDはすでに使われています');
+  const salt=hex(crypto.getRandomValues(new Uint8Array(16))),h=await hashPw(pw,salt);
+  await ref.set({id,salt,hash:h,opt:S,prog:Object.assign({},prog),up:Date.now()});return {key,id,h}}
+async function doLogin(id,pw){const key=id.toLowerCase(),s=await dbNS.doc('accounts/'+key).get(),bad=new Error('IDまたはパスワードが違います');
+  if(!s.exists)throw bad;const d=s.data()||{};if((await hashPw(pw,String(d.salt||'')))!==d.hash)throw bad;return {key,id:d.id||id,h:d.hash}}
+function setSession(a){myUid=a.key;myName=cleanName(a.id);profLoaded=false;try{localStorage.setItem('rd_acc',JSON.stringify({key:a.key,h:a.h}));localStorage.setItem('rd_name',myName)}catch(e){}}
+async function autoLogin(){try{const a=JSON.parse(localStorage.getItem('rd_acc')||'null');if(!a||!dbNS)return;
+  const s=await dbNS.doc('accounts/'+a.key).get(),d=s.exists?(s.data()||{}):null;
+  if(d&&d.hash===a.h){myUid=a.key;myName=cleanName(d.id||a.key);profLoaded=false;await loadProfile()}}catch(e){}}
+function logout(){myUid=null;profLoaded=false;try{localStorage.removeItem('rd_acc')}catch(e){}home()}
+const loginStatus2=()=>myUid?'🔐 ログイン中（名前・設定・ステージの進行・ランキングを保存しています）':dbNS===undefined?'🔐 確認中…':dbNS?'👤 ゲスト（ログインすると記録が保存されます）':'👤 ゲスト（ログイン・保存は claude.ai にサインインして開くと使えます）';
+function authScreen(){
+  state='ready';$('homeBtn').style.display='none';$('opt').style.display='none';ov.style.display='flex';
+  ov.innerHTML=`<h2>ログイン／新規登録</h2><p style="font-size:.8rem;color:#94a3b8;max-width:340px;line-height:1.6">このゲーム専用のIDとパスワードです（Claudeのアカウントとは別）。<br>⚠ 簡易的な仕組みです。ほかのサービスと同じパスワードは使わないでください。</p><div class="menu"><input id="aid" maxlength="16" placeholder="ID（英数字・_・- 3〜16文字）" autocomplete="off"><input id="apw" type="password" maxlength="64" placeholder="パスワード（6文字以上）" autocomplete="off"><button class="m" id="aLogin">ログイン</button><button class="m" id="aReg">新規登録</button><button class="m alt" id="aGuest">ゲストで遊ぶ（記録は保存されません）</button><p id="amsg" style="font-size:.8rem;color:#ff6a80;margin:0"></p></div>`;
+  const msg=t=>{$('amsg').textContent=t};
+  if(!dbNS){$('aLogin').disabled=$('aReg').disabled=true;msg(dbNS===undefined?'確認中です。少し待ってからやり直してください':'ログインは claude.ai にサインインして開くと使えます')}
+  const run=async fn=>{const id=$('aid').value.trim(),pw=$('apw').value;
+    if(!/^[A-Za-z0-9_-]{3,16}$/.test(id)){msg('IDは英数字・_・- の3〜16文字です');return}
+    if(pw.length<6){msg('パスワードは6文字以上です');return}
+    $('aLogin').disabled=$('aReg').disabled=true;msg('処理中…');
+    try{const a=await fn(id,pw);setSession(a);await loadProfile();home()}
+    catch(e){msg((e&&e.message)||'失敗しました');$('aLogin').disabled=$('aReg').disabled=false}};
+  $('aLogin').onclick=()=>run(doLogin);$('aReg').onclick=()=>run(doReg);
+  $('aGuest').onclick=()=>{if(myName)home();else nameScreen()}}
+// ---- login (Claude account) / profile sync ----
+let profLoaded=false,profT=null,profBusy=false;
+const loginStatus=()=>(myUid&&dbNS)?'🔐 ログイン中（名前・設定・ステージの進行を保存しています）':dbNS===undefined?'🔐 ログインを確認中…':'👤 ゲスト（記録は保存されません。保存するには claude.ai にサインインして開いてください）';
+function refreshHome(){if(state==='ready'&&ov.style.display!=='none'&&($('bSingle')||$('pn')))home()}
+async function loadProfile(){
+  if(!dbNS||!myUid||profLoaded)return;
+  try{
+    const ref=dbNS.doc('accounts/'+myUid),snap=await ref.get();
+    profLoaded=true;
+    if(snap.exists){const d=snap.data()||{};
+      if(d.id){myName=cleanName(d.id);try{localStorage.setItem('rd_name',myName)}catch(e){}}
+      if(d.opt&&typeof d.opt==='object'){S=Object.assign({},DEF,S,d.opt);try{localStorage.setItem('rd_opt',JSON.stringify(S))}catch(e){}applyUI()}
+      if(d.prog&&typeof d.prog==='object'){for(const k in d.prog){const v=d.prog[k]|0;if(v>(prog[k]|0))prog[k]=v}try{localStorage.setItem('rd_prog',JSON.stringify(prog))}catch(e){}}
+    }
+    saveProfile();
+  }catch(e){}
+}
+function saveProfile(){
+  if(!dbNS||!myUid||!profLoaded||!myName)return;
+  clearTimeout(profT);profT=setTimeout(async()=>{
+    if(profBusy)return;profBusy=true;
+    try{await dbNS.doc('accounts/'+myUid).update({opt:S,prog:Object.assign({},prog),up:Date.now()})}catch(e){}
+    profBusy=false},800)}
+function stageScreen(){
+  ov.innerHTML=`<h2>シングルプレイ</h2><p>ステージを選んでください</p><div class="menu"><button class="m" id="tuStart">🎓 チュートリアル${tutSeen()?'（クリア済み）':'（初めての方はこちら）'}</button>${STAGES.map((c,i)=>`<button class="m${unlocked(i)?'':' alt'}" data-s="${i}" ${unlocked(i)?'':'disabled'}>${unlocked(i)?'':'🔒 '}ステージ${c.n}　${'★'.repeat(prog[i]||0)}${'☆'.repeat(3-(prog[i]||0))}</button>`).join('')}<button class="m alt" id="sgBack">◀ 戻る</button></div>`;
+  ov.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{stage=+b.dataset.s;mode='single';start()});
+  $('sgBack').onclick=home;$('tuStart').onclick=startTutorial}
+function setPause(on){
+  if(on===paused||state!=='play')return;paused=on;
+  if(on){pauseAt=performance.now();if(document.pointerLockElement)document.exitPointerLock();
+    ov.style.display='flex';
+    ov.innerHTML=`<h2>⏸ ポーズ中</h2>${mode!=='single'?'<p style="font-size:.85rem;color:#94a3b8">マルチプレイでは、時間は止まりません</p>':''}<div class="menu"><button class="m" id="pResume">▶ 再開</button><button class="m alt" id="pHome">ホームへ（退室）</button></div>`;
+    $('pResume').onclick=()=>setPause(false);$('pHome').onclick=()=>{paused=false;home()}}
+  else{if(mode==='single'&&myRd)myRd+=performance.now()-pauseAt;ov.style.display='none';try{cv.requestPointerLock()}catch(e){}}}
+document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement===cv)wasLocked=true;else if(wasLocked){wasLocked=false;if(state==='play'&&!paused)setPause(true)}});
+// ---- tutorial ----
+const TUTCFG={tut:true,mines:0,oil:0,spikes:0,belts:0,walls:false,bars:false,kits:0,items:[['fragile',-1.5,-3],['tuna',1.5,-3]],sky:0x9ec7e8,fog:140};
+let tutOn=false,tutStep=0,tutJ=0,tutR=0,tutAir=false,tutP0={x:0,z:0},tutHtml='';
+const tutSeen=()=>{try{return localStorage.getItem('rd_tut')==='1'}catch(e){return false}};
+for(const [x,z] of [[1,-17],[-1,-21]]){const m=new THREE.Group(),y=gh(x,z);
+  const dsk=new THREE.Mesh(new THREE.CylinderGeometry(.4,.45,.1,16),new THREE.MeshPhongMaterial({color:0x3a3f4a,shininess:60}));dsk.position.y=.05;m.add(dsk);
+  const l=new THREE.Mesh(new THREE.SphereGeometry(.08,10,10),new THREE.MeshBasicMaterial({color:0xff2020}));l.position.y=.14;m.add(l);
+  m.position.set(x,y-.02,z);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),normalAt(x,z));m.visible=false;scene.add(m);MINES.push({x,z,m,l,on:false,en:false,tut:true})}
+{const x=-3,z=-27,r=3.5,o=new THREE.Mesh(conformRing(x,z,.01,r,32,6,.05),new THREE.MeshPhongMaterial({color:0x14141c,specular:0xaaaaff,shininess:150,transparent:true,opacity:.92,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+ o.visible=false;scene.add(o);OILS.push({x,z,r,o,en:false,tut:true})}
+const TUT=[
+ {t:'🎮 移動と視点',d:()=>'WASD で移動、マウスで視点を動かしてみよう（約6m進む）',ok:()=>Math.hypot(P.x-tutP0.x,P.z-tutP0.z)>6},
+ {t:'⬆ ジャンプ',d:()=>'Space でジャンプ！2回跳んでみよう（'+Math.min(2,tutJ)+'/2）',ok:()=>tutJ>=2},
+ {t:'💨 ダッシュ',d:()=>'Shift を押しながら移動すると走れる（'+Math.min(2,tutR).toFixed(1)+'/2秒）',ok:()=>tutR>=2},
+ {t:'📦 荷物を拾う',d:()=>'荷物に近づいて '+kn(S.kPick)+' で拾おう（まず🍷割れ物）',ok:()=>!!held},
+ {t:'🍷 割れ物',d:()=>'🍷は走ったり、高いところから落とすと割れる。右上の衆撃ゲージを見て、歩いて運ぼう',ok:()=>!!held&&P.z<-12},
+ {t:'💣 地雷',d:()=>'赤く点滅する円盤は地雷。踏まずによけて進もう（チュートリアルでは死なない）',ok:()=>P.z<-23},
+ {t:'🛢 油だまり',d:()=>'黒い油の上は滑り、ジャンプもできない。迂回して進もう。黄色いリングは落とし穴（落ちると即死）',ok:()=>P.z<-34},
+ {t:'🏠 配達',d:()=>'黄色い光の円（配達先）まで運んで、'+kn(S.kPick)+' で置こう',ok:()=>items.some(i=>i.t==='fragile'&&i.done)},
+ {t:'🐟 マグロ',d:()=>'マグロは近づくと逃げる！捕まえて '+kn(S.kPick)+'、暴れ出す前に配達先へ運んで置こう',ok:()=>items.some(i=>i.t==='tuna'&&i.done)}];
+function tutUpdate(dt){
+  if(!tutOn)return;
+  if(!P.g&&P.vy>5.5&&!tutAir){tutJ++;tutAir=true}if(P.g)tutAir=false;
+  if(P.g&&(K.ShiftLeft||K.ShiftRight||S.tog&&runT)&&Math.hypot(P.vx,P.vz)>6.5)tutR+=dt;
+  P.z=Math.max(P.z,-56);
+  const s=TUT[tutStep];
+  if(s&&s.ok()){tutStep++;SE.ok();if(tutStep>=TUT.length){tutDone();return}}
+  const c=TUT[tutStep];
+  const h='<b>🎓 '+(tutStep+1)+'/'+TUT.length+'　'+c.t+'</b><br>'+c.d()+'<br><span style="font-size:.75rem;color:#94a3b8">N: このステップをスキップ　P: ポーズ　M: ホームへ</span>';
+  if(h!==tutHtml){tutHtml=h;$('tut').innerHTML=h}
+}
+function tutDone(){
+  tutOn=false;state='over';paused=false;bgm(false);if(document.pointerLockElement)document.exitPointerLock();
+  $('tut').style.display='none';try{localStorage.setItem('rd_tut','1')}catch(e){}
+  ov.innerHTML=`<h2>🎓 チュートリアル完了！</h2><p style="max-width:380px;line-height:1.7">基本操作は以上です。<br>このほか、💣爆弾は大声や地雷の爆発で爆発（半径3.5m・即死）、<br>🔪スパイク・🧱動く壁・🪵回転バー・⏩ベルトなどの罠があります。<br>P でポーズ、M でホームに戻れます。</p><div class="menu"><button class="m" id="tuGo">▶ ステージ1へ</button><button class="m alt" id="tuAgain">もう一度チュートリアル</button><button class="m alt" id="tuHome">ホームへ</button></div>`;
+  ov.style.display='flex';
+  $('tuGo').onclick=()=>{stage=0;mode='single';start()};$('tuAgain').onclick=startTutorial;$('tuHome').onclick=home}
+function startTutorial(){mode='single';tutOn=true;start()}
+// ---- HP / spectator ----
+function dmgFx(){const f=$('dmg');f.style.transition='none';f.style.opacity=1;requestAnimationFrame(()=>{f.style.transition='opacity .6s';f.style.opacity=0})}
+function hurt(n,why){if(state!=='play'||(inv>0&&n<999))return;inv=.35;if(tutOn){P.hp=Math.max(30,P.hp-Math.min(n,30));dmgFx();SE.shove();return}P.hp-=n;dmgFx();SE.shove();if(P.hp<=0){P.hp=0;die(why)}}
+function die(why){
+  say('💀 '+why+'で力尽きた…');SE.break();
+  if(held){const h=held;held=null;h.vy=3}
+  died=true;
+  if(mode==='single'){finish();return}
+  items.forEach(i=>{i.own=false});
+  state='spec';specI=0;bgm(false);
+  if(document.pointerLockElement)document.exitPointerLock();
+  $('homeBtn').style.display='block';
+}
+function spec(dt){goalUpdate();coopClock();
+  const ap=room?room.peers().filter(p=>!p.isMe&&p.kind==='viewer'&&p.presence&&p.presence.st==='play'&&typeof p.presence.x==='number'):[];
+  if(!ap.length||(mode==='coop'&&tLeft<=0)||(wolfMode&&!items.some(i=>i.alive&&!i.done))){finish();return}
+  for(const i of items)if(i.alive&&!i.done)remoteItem(i,dt);
+  specI=((specI%ap.length)+ap.length)%ap.length;const p=ap[specI],q=p.presence;
+  const fx=-Math.sin(q.yaw),fz=-Math.cos(q.yaw),k=Math.min(1,6*dt);
+  cam.position.x+=(q.x-fx*4-cam.position.x)*k;cam.position.y+=(q.y+2.6-cam.position.y)*k;cam.position.z+=(q.z-fz*4-cam.position.z)*k;
+  cam.lookAt(q.x,q.y+1.2,q.z);
+  $('l').innerHTML='💀 脱落しました（配達 ✅'+items.filter(i=>i.alive&&i.done).length+'）';
+  $('r').innerHTML=`👁 観戦中：${cleanName(q.nm)||nick(p.peer)}<br><span style="font-weight:400">クリック/${kn(S.kPick)} 次へ　${kn(S.kShove)} 前へ</span>`;
+}
+const KITS=[];
+{let sd=4242;const rnd=()=>(sd=(Math.imul(sd,1664525)+1013904223)>>>0)/4294967296;
+ const bx=(w,h,d,c)=>new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:c}));
+ let n=0;
+ while(KITS.length<4&&n++<300){const x=(rnd()-.5)*30,z=-25-rnd()*115;if((z<-58&&z>-80)||pitAt(x,z)>0)continue;
+  const g=new THREE.Group(),y=gh(x,z);g.add(bx(.5,.5,.5,0xffffff),bx(.34,.1,.52,0xdd1111),bx(.1,.34,.52,0xdd1111));
+  g.position.set(x,y+.6,z);scene.add(g);KITS.push({x,z,y,g,on:true})}
+}
+function kits(dt){inv-=dt;saboCd-=dt;pickCd-=dt;const t=performance.now()/1000;
+  for(const k of KITS){if(!k.on)continue;k.g.rotation.y=t*2;k.g.position.y=k.y+.6+Math.sin(t*3)*.1;
+    if(P.hp<100&&Math.hypot(P.x-k.x,P.z-k.z)<1.3&&Math.abs(P.y-k.y)<2){k.on=false;k.g.visible=false;P.hp=Math.min(100,P.hp+35);SE.ok();say('❤ 回復！ +35')}}
+}
+function update(dt){
+  const run=!onBelt&&(S.tog?runT:(K.ShiftLeft||K.ShiftRight)),sp=run?8:4.5;
+  if(K.ArrowLeft)P.yaw+=1.8*dt;if(K.ArrowRight)P.yaw-=1.8*dt;if(K.ArrowUp)P.pitch=Math.min(1.4,P.pitch+1.5*dt);if(K.ArrowDown)P.pitch=Math.max(-1.4,P.pitch-1.5*dt);
+  const fw=(K.KeyW?1:0)-(K.KeyS?1:0),rt=(K.KeyD?1:0)-(K.KeyA?1:0),s=Math.sin(P.yaw),c=Math.cos(P.yaw);
+  let tx=(-s*fw+c*rt),tz=(-c*fw-s*rt);const l=Math.hypot(tx,tz)||1;tx=tx/l*sp*(fw||rt?1:0);tz=tz/l*sp*(fw||rt?1:0);
+  const a=Math.min(1,(onOil?.9:(P.g?10:2))*dt);P.vx+=(tx-P.vx)*a;P.vz+=(tz-P.vz)*a;
+  if(K.Space&&P.g&&onOil&&msgT<=0)say('🛢 油の上ではジャンプできない！');
+  if(K.Space&&P.g&&!onOil){P.vy=6.5;P.g=false}
+  P.vy-=20*dt;P.x=Math.max(-28,Math.min(28,P.x+P.vx*dt));P.z=Math.min(10,Math.max(-175,P.z+P.vz*dt));P.y+=P.vy*dt;
+  const g=gh(P.x,P.z);
+  if(P.y<=g){const hit=P.vy;P.y=g;P.vy=0;if(hit<-14)hurt((-hit-14)*4,'転落');if(!P.g&&hit<-7&&held&&held.t==='fragile')held.stress+=.5;P.g=true}else if(P.y>g+.15)P.g=false;
+  if(P.y<-6){say('谷に落ちた！荷物は…');hurt(999,'谷');if(held)kill(held,'落とした');P.x=0;P.z=-62;P.y=gh(0,-62);P.vx=P.vy=P.vz=0}
+  cam.position.set(P.x,P.y+1.7,P.z);cam.rotation.set(P.pitch,P.yaw,0);
+  traps(dt);traps2(dt);kits(dt);goalUpdate();boundary();coopRespawn();tutUpdate(dt);
+  // voice
+  const loud=K[S.kShout]?1:level,bomb=(boomTarget&&boomTarget.alive&&!boomTarget.done)?boomTarget:(mode==='coop'?(held&&held.t==='bomb'?held:null):items.find(i=>i.alive&&!i.done&&i.t==='bomb'));
+  if(!bomb)meter=Math.max(0,meter-dt*.5);
+  if(bomb){meter=Math.max(0,Math.min(1,meter+(loud>.35?loud*dt*1.2:-dt*.25)));
+    if(meter>=1){flash();const b=bomb;items.forEach(i=>{if((mode!=='coop'||i.own)&&i.alive&&!i.done&&Math.hypot(i.x-b.x,i.z-b.z)<3.5)kill(i,'爆発')});
+      if(Math.hypot(P.x-b.x,P.z-b.z)<3.5){P.vy=9;P.g=false;P.vx+=(P.x-b.x);P.vz+=(P.z-b.z);hurt(999,'爆発')}meter=0;boomTarget=null;boomN++;bmPos=[boomN,+b.x.toFixed(1),+b.z.toFixed(1)];say('💥 声が大きすぎた！')}}
+  const spd=Math.hypot(P.vx,P.vz),grip=K.KeyF||drag;
+  for(const i of items){
+    if(!i.alive||i.done)continue;
+    if(mode==='coop'&&!i.own&&i!==held){remoteItem(i,dt);continue}
+    if(i===held){
+      const f=new THREE.Vector3(-s,0,-c);i.x=P.x+f.x*1.0;i.z=P.z+f.z*1.0;i.y=P.y+1.15+Math.sin(P.pitch)*.8;i.vx=i.vy=i.vz=0;
+      if(i.t==='fragile'){i.stress+=(spd>5?.35:spd>0.5?.02:0)*dt;if(i.stress>=1.5){kill(i,'割れた');continue}}
+      if(i.t==='tuna'){i.lastHeld=performance.now();i.esc-=dt;i.slip=i.esc<0?1:0;
+        if(i.slip>=1){held=null;i.vy=6;i.vx=(Math.random()-.5)*6;i.vz=(Math.random()-.5)*6;i.slip=0;i.noPick=performance.now()+3500;say('🐟 マグロが逃げた！')}}
+    }else{
+      i.vy-=20*dt;i.x+=i.vx*dt;i.y+=i.vy*dt;i.z+=i.vz*dt;i.x=Math.max(-28,Math.min(28,i.x));i.z=Math.min(10,Math.max(-175,i.z));
+      const gg=gh(i.x,i.z)+i.s/2;
+      if(i.y<=gg){if(i.t==='fragile'&&i.vy<-9){kill(i,'割れた');continue}i.y=gg;i.vy=0;i.vx*=.8;i.vz*=.8;
+        if(i.t==='tuna'){i.hop-=dt;if(i.hop<0){i.hop=.5+Math.random()*.5;const dx=i.x-P.x,dz=i.z-P.z,dd=Math.hypot(dx,dz)||1;
+          if(dd<9){const f=5+(9-dd)*.5,ang=Math.atan2(dz,dx)+(Math.random()-.5)*2.2+(Math.random()<.25?(Math.random()<.5?1.6:-1.6):0);
+            let ux=Math.cos(ang)*f,uz=Math.sin(ang)*f;const gx=i.x-GX,gz=i.z-GZ,gd=Math.hypot(gx,gz);
+            if(gd<16){ux+=gx/(gd||1)*7;uz+=gz/(gd||1)*7}
+            i.vy=5;i.vx=ux;i.vz=uz}
+          else{i.vy=3;i.vx=(Math.random()-.5)*2;i.vz=(Math.random()-.5)*2}}}}
+      if(i.y<-5||(pitAt(i.x,i.z)>.9&&i.y<base(i.x,i.z)-2.5)){kill(i,'落下');continue}
+      if(!(wolfMode&&myRole==='wolf')&&(i.t!=='tuna'||performance.now()-(i.lastHeld||0)<4000)&&Math.hypot(i.x-GX,i.z-GZ)<4&&i.y<gy+2){i.done=true;i.m.traverse(o=>{if(o.material&&o.material.emissive)o.material.emissive.setHex(0x0f5a24)});SE.ok();myScore++;i.y=gh(i.x,i.z)+i.s/2;say('✅ '+TYPES[i.t].e+' 配達完了')}
+    }
+    i.m.position.set(i.x,i.y,i.z);animItem(i,dt);
+  }
+  if(msgT>0){msgT-=dt;if(msgT<=0)$('msg').textContent=''}
+  tLeft-=dt;coopClock();
+  const pending=items.some(i=>i.alive&&!i.done);
+  if(((mode!=='coop'||wolfMode)&&!pending)||tLeft<=0)(tutOn?tutDone():finish());
+  hud();
+}
+function hud(){
+  const st=items.map(i=>!i.alive?'✖':i.done?'✅':TYPES[i.t].e.slice(0,2)).join(' ');
+  $('l').innerHTML=`❤ ${Math.max(0,Math.ceil(P.hp))}/100<div class="bar"><i style="width:${P.hp}%;background:${P.hp>50?'#44dd66':P.hp>25?'#FFD700':'#FF0055'}"></i></div>${wolfMode?'🎭 '+(myRole==='wolf'?'🐺 人狼':'🏘 市民')+'<br>':''}${mode==='single'?(tutOn?'🎓 チュートリアル':'📍 ステージ'+STAGES[stage].n)+'<br>':''}⏱ ${Math.max(0,tLeft|0)}秒<br>荷物 ${st}<br>配達先まで ${Math.max(0,Math.round(Math.hypot(P.x-GX,P.z-GZ)))}m ${goalArrow()}　📦移動まで ${goalIn()}秒<br>${micOn?'🎤 VC ON':'🎤 VC未接続（クリックで許可）'}<div class="bar"><i style="width:${level*100}%;background:#00F0FF"></i></div>`;
+  let r='';
+  if(held){r+=`持っている: ${TYPES[held.t].e}`;
+    if(held.t==='fragile')r+=`<div class="bar"><i style="width:${Math.min(100,held.stress/1.5*100)}%"></i></div>衝撃(走る/着地で増加)`;
+    if(held.t==='tuna')r+=`${held.esc<2?'🐟 暴れてる！もうすぐ逃げる！':'（捕まえた！）'}`}
+  if(items.some(i=>i.alive&&!i.done&&i.t==='bomb'))r+=`<br>💣衝撃メーター ${micOn?'🎤':'(Vで叫ぶ)'}<div class="bar"><i style="width:${meter*100}%;background:${meter>.7?'#FF0055':'#FF5E00'}"></i></div>`;
+  if(wolfMode&&myRole==='wolf')r='<span style="color:#ff6a80">🐺 仲間: '+wolfMates()+'<br>妖害[F] '+(saboCd>0?Math.ceil(saboCd)+'秒':'OK')+'</span><br>'+r;
+  $('r').innerHTML=r;
+}
+function finish(){
+  state='over';paused=false;bgm(false);if(document.pointerLockElement)document.exitPointerLock();
+  const n=items.filter(i=>i.alive&&i.done).length,lost=items.filter(i=>!i.alive).length,left=items.filter(i=>i.alive&&!i.done).length;
+  if(mode==='single'&&!died&&n>0){const sc2=Math.max(1,Math.round(3*n/items.length));if((prog[stage]||0)<sc2){prog[stage]=sc2;saveProfile();try{localStorage.setItem('rd_prog',JSON.stringify(prog))}catch(e){}}}
+  const coopF=mode==='coop',tot=coopF?teamScore():0,starN=coopF?(tot>=10?3:tot>=6?2:tot>=3?1:0):Math.round(3*n/items.length);
+  const wD=items.filter(i=>i.alive&&i.done).length,wB=items.length-wD,citWin=wD>wB,iWin=myRole==='wolf'?!citWin:citWin;saveResult(iWin);
+  ov.innerHTML=`<h2>${wolfMode?(iWin?'🎉 勝利！':'😢 敗北…'):coopF?(tLeft>0?'💀 全滅…':'⏱ タイムアップ！'):died?'💀 力尽きた…':n?'配達完了！':'配達失敗…'}</h2><p style="font-size:2rem">${wolfMode?(citWin?'🏘 市民の勝ち':'🐺 人狼の勝ち'):'★'.repeat(starN)+'☆'.repeat(3-starN)}</p><p>${coopF?(wolfMode?'市民の配達 '+wD+'個 ／ 届けられなかった荷物 '+wB+'個<br>🐺 人狼: '+wolfNames():'チーム配達 '+tot+'個'):'届けた '+n+' ／ 失った '+lost+(left?' ／ 時間切れ '+left:'')}</p><div id="rank" style="margin-top:8px;font-size:.9rem;line-height:1.7"></div><div class="menu">${mode==='single'&&!died&&n>0&&stage<STAGES.length-1?'<button class="m" id="bNext">▶ 次のステージへ</button>':''}<button class="m" id="bAgain">${mode==='single'?'もう一度 (R)':'ルームに戻る'}</button><button class="m alt" id="bHome">ホームへ</button><button class="m alt" id="bRankF">🏆 ランキング</button></div>`;
+  ov.style.display='flex';$('bAgain').onclick=()=>mode==='single'?start():lobby();$('bHome').onclick=home;$('bRankF').onclick=()=>openRank();const bn=$('bNext');if(bn)bn.onclick=()=>{stage++;start()};
+}
+function intro(){ov.innerHTML=`<h2>急げ！宅配便（仮）</h2>
+<p>ブラック宅配「ニャンバット配送」の配達員として、3つの荷物を<br>150m先の家（黄色い円）まで運び込もう。谷の橋は細いので注意！</p>
+<p>🍷割れ物：走ると・高所から落ちると割れる　🐟マグロ：近づくと逃げる（捕まえてEで拾おう）<br>💣爆薬箱：大声で爆発（マイク or Vキー）</p>
+<p><b>WASD</b>移動　<b>Shift</b>走る　<b>Space</b>ジャンプ　<b>マウス</b>視点(クリックでロック／ドラッグ)<br><b>E</b>拾う・置く　<b>V</b>叫ぶ　<b>R</b>リスタート</p>
+<div class="btn">クリックでスタート</div>`}
+let ac=null,micBusy=false;
+async function initMic(){
+  if(micOn){if(ac&&ac.state==='suspended')ac.resume();return}
+  if(micBusy)return;micBusy=true;
+  try{const st=await navigator.mediaDevices.getUserMedia({audio:true});
+    ac=new (window.AudioContext||window.webkitAudioContext)();mic=ac.createAnalyser();mic.fftSize=512;ac.createMediaStreamSource(st).connect(mic);micOn=true;
+    st.getTracks().forEach(t=>t.addEventListener('ended',()=>{micOn=false}))}catch(e){}
+  micBusy=false}
+['pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev,initMic));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)initMic()});
+initMic();
+function start(f,host){paused=false;if(mode!=='single')tutOn=false;applyStage(tutOn?TUTCFG:mode==='single'?STAGES[stage]:FULL);reset();if(tutOn){tutStep=0;tutJ=0;tutR=0;tutAir=false;tutP0={x:0,z:0}}$('tut').style.display=tutOn?'block':'none';died=false;myScore=0;savedRound=false;$('toasts').innerHTML='';myRd=f||Date.now();planGoal();if(mode==='single'&&!tutOn)say('📍 ステージ'+STAGES[stage].n);f||Date.now();if(mode==='coop')items.forEach(i=>{i.own=!!host||(!f&&amSmallest())});runT=false;state='play';ov.style.display='none';$('opt').style.display='none';$('homeBtn').style.display='block';actx();initMic();bgm(true);try{cv.requestPointerLock()}catch(e){}}
+
+cv.addEventListener('mousedown',()=>{if(state==='spec')specI++;drag=true;if(state==='play'&&!document.pointerLockElement){try{cv.requestPointerLock()}catch(e){}}});
+addEventListener('mouseup',()=>drag=false);
+addEventListener('mousemove',e=>{if(state!=='play'||paused)return;if(document.pointerLockElement===cv||drag){P.yaw-=e.movementX*.0025*S.sens;P.pitch=Math.max(-1.4,Math.min(1.4,P.pitch-e.movementY*.0025*S.sens*(S.inv?-1:1)))}});
+addEventListener('keydown',e=>{if(e.target&&e.target.tagName==='INPUT')return;if(rebind){rebind(e.code);e.preventDefault();return}
+  if(e.code==='KeyN'&&tutOn&&state==='play'&&!paused){tutStep++;if(tutStep>=TUT.length)tutDone();return}
+  if(e.code==='KeyP'&&state==='play'){setPause(!paused);return}
+  if(paused&&e.code!=='KeyM')return;
+  K[e.code]=true;if(e.code==='Space')e.preventDefault();
+  if((e.code==='ShiftLeft'||e.code==='ShiftRight')&&!e.repeat)runT=!runT;
+  if(e.code==='KeyM'&&state!=='ready'){home();return}
+  if(e.code==='KeyR'&&mode==='single'&&state!=='ready'){start();return}
+  if(e.code==='KeyF'&&state==='play'&&wolfMode&&myRole==='wolf')sabotage();
+  if(e.code===S.kShove&&state==='spec')specI--;
+  if(e.code===S.kShove&&state==='play')shove();
+  if(e.code===S.kPick&&state==='spec')specI++;
+  if(e.code===S.kPick&&state==='play'&&pickCd<=0&&!e.repeat){pickCd=.45;
+    if(held){held.vx=held.vz=0;held=null;SE.drop()}
+    else{let b=null,bd=3.2;for(const i of items){if(!i.alive||i.done||i.noPick>performance.now())continue;const d=Math.hypot(i.x-P.x,i.z-P.z);if(d<bd&&Math.abs(i.y-P.y)<2.5){bd=d;b=i}}
+      if(b){held=b;b.own=true;if(b.t==='tuna'&&!(b.esc>0))b.esc=5+Math.random()*9;SE.pick();say(TYPES[b.t].e+' を持った')}}}});
+addEventListener('keyup',e=>K[e.code]=false);
+// ---- multiplayer (room capability: 同じページを開いている人と同時プレイ) ----
+let room=null,myPeer=null,mpT=0,bT=0,shoveCd=0,myRd=0,myGo=0,myScore=0,boomN=0,bmPos=null;const avatars=new Map();
+const HC={fragile:0x7fd4ff,bomb:0xd02030,tuna:0x6f8fa8};
+const clean=s=>String(s).replace(/[^a-z0-9]/gi,'');
+const hue=s=>{let h=0;for(const ch of s)h=(h*31+ch.charCodeAt(0))%360;return h};
+const nick=s=>'P'+clean(s).slice(-3).toUpperCase();
+function label(t,col){const c=document.createElement('canvas');c.width=256;c.height=40;const x=c.getContext('2d');x.fillStyle=col||'rgba(0,0,0,.6)';x.fillRect(0,0,256,40);x.fillStyle='#fff';x.font='bold 24px sans-serif';x.textAlign='center';x.fillText(t,128,29,244);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));s.scale.set(3.2,.5,1);s.position.y=2.3;return s}
+function mkAvatar(peer){
+  const g=new THREE.Group(),c=new THREE.Color().setHSL(hue(peer)/360,.7,.55);
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,1.4,12),new THREE.MeshLambertMaterial({color:c}));body.position.y=.7;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.3,12,12),new THREE.MeshLambertMaterial({color:0xffe0bd}));head.position.y=1.6;
+  const cb=new THREE.Mesh(new THREE.BoxGeometry(.5,.5,.5),new THREE.MeshLambertMaterial({color:0xffffff}));cb.position.set(0,1.3,-.8);cb.visible=false;
+  const lab=label(nick(peer));g.add(body,head,cb,lab);g.userData={cb,lab,nm:nick(peer)};scene.add(g);return g}
+function shove(){
+  if(!room||!(mode==='versus'||(wolfMode&&myRole==='wolf'))||shoveCd>0)return;let b=null,bd=3;
+  for(const p of room.peers()){if(p.isMe||typeof p.presence.x!=='number')continue;const d=Math.hypot(p.presence.x-P.x,p.presence.z-P.z);if(d<bd){bd=d;b=p}}
+  if(!b)return;shoveCd=wolfMode?4:1;const dx=b.presence.x-P.x,dz=b.presence.z-P.z,l=Math.hypot(dx,dz)||1;
+  room.emit('shove',{to:b.peer,dx:dx/l,dz:dz/l}).catch(()=>{});SE.shove();say('💢 突き飛ばした！')}
+(async()=>{try{
+  if(!window.claude||!claude.use){roomNS=null;return}
+  roomNS=await claude.use('room')||null;
+}catch(e){roomNS=null}})();
+function shoveHandler(m){
+  
+  const d=m.data;if(!d||m.isMe)return;
+  if(d.sabo!==undefined){const it=items[d.sabo|0];if(it&&it.own&&it.alive&&!it.done&&state==='play')kill(it,'人狼の妖害');return}
+  if(d.to!==myPeer||state!=='play'||(mode!=='versus'&&!wolfMode))return;
+    P.vx+=(+d.dx||0)*9;P.vz+=(+d.dz||0)*9;P.vy=4;P.g=false;
+    if(held){if(held.t==='fragile')held.stress+=.45;if(held.t==='tuna')held.slip+=.5;if(wolfMode){held.vy=2;held=null}}
+    SE.shove();hurt(5,'突き飛ばし');say('💢 突き飛ばされた！')}
+
+const knownP=new Map();let joinAt=0;
+function peerWatch(){
+  if(!room)return;const now=performance.now(),cur=new Map();
+  for(const p of room.peers()){if(p.isMe||p.kind!=='viewer'||!p.presence||!p.presence.nm)continue;cur.set(p.peer,cleanName(p.presence.nm)||nick(p.peer))}
+  if(now-joinAt>1800){for(const [id,nm] of cur)if(!knownP.has(id))notify('👋 '+nm+' さんが入室しました','info');
+    for(const [id,nm] of knownP)if(!cur.has(id))notify('🚪 '+nm+' さんが退室しました','info')}
+  knownP.clear();for(const [id,nm] of cur)knownP.set(id,nm)}
+const COOP_T=180;
+const untint=m=>m.traverse(o=>{if(o.material&&o.material.emissive)o.material.emissive.setHex(0)});
+function coopClock(){if(mode==='coop')tLeft=(wolfMode?240:COOP_T)-(Date.now()-(myRd||Date.now()))/1000}
+function respawnItem(i){i.gen++;i.alive=true;i.done=false;i.stress=0;i.slip=0;i.hop=1;i.esc=0;i.vx=i.vy=i.vz=0;i.x=i.sx;i.z=i.sz;i.y=gh(i.sx,i.sz)+i.s/2;i.m.visible=true;untint(i.m);i.m.position.set(i.x,i.y,i.z);if(held===i)held=null;i.rt=0}
+function coopRespawn(){if(mode!=='coop'||wolfMode)return;const now=performance.now();for(const i of items){if(i.own&&(i.done||!i.alive)){if(!i.rt)i.rt=now+3000;else if(now>=i.rt)respawnItem(i)}else i.rt=0}}
+function teamScore(){let s=myScore;if(room)for(const p of room.peers())if(!p.isMe&&p.kind==='viewer'&&p.presence&&typeof p.presence.sc==='number')s+=p.presence.sc;return s}
+// ---- werewolf mode (runs on the coop infrastructure) ----
+let wolfMode=false,myRole='citizen',wolves=[],wlOut=null,saboCd=0,pickCd=0,boomTarget=null,paused=false,pauseAt=0,wasLocked=false;
+const W9=[['fragile',-2.5,-3],['bomb',0,-3],['tuna',2.5,-3],['fragile',-2.5,-5],['bomb',0,-5],['tuna',2.5,-5],['fragile',-2.5,-7],['bomb',0,-7],['tuna',2.5,-7]];
+function myPid(){const me=room&&room.peers().find(p=>p.isMe);return me?me.peer:myPeer}
+function setRoles(l){wolves=Array.isArray(l)?l:[];myRole=wolves.includes(myPid())?'wolf':'citizen'}
+function announceRole(){notify(myRole==='wolf'?'🐺 あなたは【人狼】です！市民のふりをして荷物を妖害しよう（F:荷物を壊す Q:突き飛ばし）':'🏘 あなたは【市民】です！9個の荷物を届けよう。人狼が紛れています…','info')}
+const nameOf=id=>{const p=room&&room.peers().find(q=>q.peer===id);return (p&&p.presence&&cleanName(p.presence.nm))||nick(id)};
+function wolfMates(){return wolves.filter(id=>id!==myPid()).map(nameOf).join('・')||'なし'}
+function wolfNames(){return wolves.map(nameOf).join('・')}
+function sabotage(){
+  if(saboCd>0)return;let b=null,bd=3;
+  for(const i of items){if(!i.alive||i.done)continue;const d=Math.hypot(i.x-P.x,i.z-P.z);if(d<bd){bd=d;b=i}}
+  if(!b){say('近くに荷物がありません');return}
+  saboCd=18;
+  if(b.own)kill(b,'人狼の妖害');else if(room)room.emit('shove',{sabo:b.id}).catch(()=>{});
+  say('🐺 妖害した…')}
+const boomSeen={},goSeen={};
+function goCheck(p,q){
+  if(goSeen[p.peer]===undefined){goSeen[p.peer]=q.go||0;return}
+  if(q.go&&q.go!==goSeen[p.peer]){goSeen[p.peer]=q.go;if(state==='lobby'){if(wolfMode)setRoles(q.wl||[]);start(q.go,false);if(wolfMode)announceRole()}}
+}
+function lobby(){
+  state='lobby';bgm(false);held=null;if(document.pointerLockElement)document.exitPointerLock();
+  $('homeBtn').style.display='none';$('opt').style.display='none';ov.style.display='flex';
+  ov.innerHTML=`<h2>${wolfMode?'🐺 人狼モード':mode==='coop'?'🤝 協力モード':'⚔ 対戦モード'}</h2><p>ルーム番号 <b style="font-size:1.4rem;color:var(--yellow)">${clean(roomCode)}</b></p><div id="lp" style="margin:8px 0;line-height:1.8"></div>${wolfMode?'<p style="font-size:.8rem;color:#94a3b8;max-width:340px;line-height:1.6">市民は9個の荷物を届ける。人狼は市民のふりをして妖害（F:荷物を壊す・Q:突き飛ばし・荷物を抱え込む）。届けた数＞届けられなかった数なら市民の勝ち、そうでなければ人狼の勝ち。人狼は6人以上で2人。最低2人で開始できます。</p>':''}
+<div class="menu"><button class="m" id="bGo" disabled>▶ ゲーム開始</button><button class="m" id="bJoinNow" style="display:none">途中参加する</button><button class="m alt" id="bLeave">ホームへ（退室）</button></div><p id="lmsg" style="font-size:.85rem;color:#94a3b8"></p>`;
+  $('bGo').onclick=()=>{const g=Date.now();myGo=g;
+    if(wolfMode&&room){const ps=room.peers().filter(p=>p.kind==='viewer'&&(p.isMe||(p.presence&&p.presence.st==='lobby'))).map(p=>p.peer);
+      for(let i=ps.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[ps[i],ps[j]]=[ps[j],ps[i]]}
+      wlOut=ps.slice(0,ps.length>=6?2:1);setRoles(wlOut)}
+    if(room)room.presence({go:g,wl:wlOut}).catch(()=>{});start(g,true);if(wolfMode)announceRole()};
+  $('bJoinNow').onclick=()=>{let mx=0;for(const p of room.peers())if(!p.isMe&&p.kind==='viewer'&&p.presence&&p.presence.st==='play'&&typeof p.presence.rd==='number')mx=Math.max(mx,p.presence.rd);start(mx||0,false)};
+  $('bLeave').onclick=home;
+}
+function lobbyRender(rows){
+  const lp=$('lp');if(!lp)return;
+  const hid=rows.map(r=>r.pid).sort()[0],meRow=rows.find(r=>r.me),host=!!meRow&&meRow.pid===hid,playing=rows.some(r=>!r.me&&r.st==='play');
+  lp.innerHTML='<b>参加者 '+rows.length+'人</b><br>'+rows.map(r=>`${r.me?'<b>'+r.n+'（あなた）</b>':r.n}${r.pid===hid?' 👑ホスト':''}　${r.st==='play'?'🎮プレイ中':r.st==='over'?'🏁終了':'⏳待機中'}`).join('<br>');
+  $('bGo').disabled=!host||(wolfMode&&rows.length<2);$('bJoinNow').style.display=(playing&&!host&&!wolfMode)?'block':'none';
+  $('lmsg').textContent=host?(playing?'他の人がプレイ中です':'全員そろったら「ゲーム開始」を押してください'):'ホストの開始を待っています…'+(playing?'（プレイ中のラウンドに途中参加もできます）':'');
+}
+const tint=m=>m.traverse(o=>{if(o.material&&o.material.emissive)o.material.emissive.setHex(0x0f5a24)});
+function amSmallest(){if(!room)return true;const ps=room.peers(),v=ps.filter(p=>p.kind==='viewer'&&(p.isMe?(state==='play'||state==='over'||state==='lobby'):(p.presence&&(p.presence.st==='play'||p.presence.st==='over')))).map(p=>p.peer).sort(),me=ps.find(p=>p.isMe);return !me||v[0]===me.peer}
+function remoteItem(i,dt){const k=Math.min(1,12*dt);i.vx=(i.tx-i.x)*8;i.vz=(i.tz-i.z)*8;i.vy=(i.ty-i.y)*8;
+  if(i.tx!==undefined){i.x+=(i.tx-i.x)*k;i.y+=(i.ty-i.y)*k;i.z+=(i.tz-i.z)*k}
+  i.m.position.set(i.x,i.y,i.z);animItem(i,dt)}
+function coopSync(p,q){
+  const now=performance.now();
+  if(typeof q.rd==='number'&&q.rd>myRd&&(state==='play'||state==='over'||state==='spec')){start(q.rd);return}
+  if(boomSeen[p.peer]===undefined)boomSeen[p.peer]=q.bm?q.bm[0]:0;
+  if(q.bm&&boomSeen[p.peer]!==q.bm[0]){boomSeen[p.peer]=q.bm[0];
+    if(state==='play'&&Math.hypot(P.x-q.bm[1],P.z-q.bm[2])<20){flash();SE.boom()}
+    items.forEach(i=>{if(i.own&&i.alive&&!i.done&&Math.hypot(i.x-q.bm[1],i.z-q.bm[2])<3.5)kill(i,'爆発')});
+    if(Math.hypot(P.x-q.bm[1],P.z-q.bm[2])<3.5){P.vy=9;P.g=false;P.vx+=P.x-q.bm[1];P.vz+=P.z-q.bm[2];if(state==='play')hurt(999,'爆発')}}
+  if(!Array.isArray(q.it))return;
+  for(const e of q.it){const it=items[e[0]];if(!it)continue;const f=e[4];
+    if(it.own&&it!==held&&((f&4)||p.peer<myPeer))it.own=false;
+    if(!it.own){const g=e[5]|0;if(g>(it.gen||0)){it.gen=g;it.alive=true;it.done=false;it.m.visible=true;untint(it.m);it.x=e[1];it.y=e[2];it.z=e[3];it.m.position.set(it.x,it.y,it.z)}it.seen=now;it.tx=e[1];it.ty=e[2];it.tz=e[3];
+      if(!(f&1)&&it.alive){it.alive=false;it.m.visible=false;notifyLost(it,'')}
+      if((f&2)&&!it.done){it.done=true;it.x=it.tx;it.y=it.ty;it.z=it.tz;it.m.position.set(it.x,it.y,it.z);tint(it.m);SE.ok()}}}
+}
+function mpUpdate(dt){
+  if(!room)return;shoveCd-=dt;mpT-=dt;bT-=dt;
+  const dn=items.filter(i=>i.alive&&i.done).length,ls=items.filter(i=>!i.alive).length;
+  if(mpT<=0){mpT=.05;room.presence({x:+P.x.toFixed(2),y:+P.y.toFixed(2),z:+P.z.toFixed(2),yaw:+P.yaw.toFixed(2),h:held?held.t:null,d:dn,l:ls,st:state==='spec'?'dead':state,tl:state==='over'&&!died?Math.round(tLeft):null,dd:died?1:0,nm:myName,sc:myScore,wl:wlOut,rd:myRd,go:myGo||null,bm:bmPos,it:mode==='coop'&&(state==='play'||state==='over')?items.filter(i=>i.own).map(i=>[i.id,+i.x.toFixed(2),+i.y.toFixed(2),+i.z.toFixed(2),(i.alive?1:0)|(i.done?2:0)|(i===held?4:0),i.gen]):null}).catch(()=>{})}
+  if(mode==='coop'){const nw=performance.now();let sm=null;for(const i of items){if(!i.own&&nw-i.seen>2500){if(sm===null)sm=amSmallest();if(sm){i.own=true;i.vx=i.vy=i.vz=0}}}}
+  peerWatch();const seen=new Set(),rows=[];
+  for(const p of room.peers()){
+    if(p.kind!=='viewer')continue;const q=p.presence||{};
+    if(!p.isMe)goCheck(p,q);
+    if(mode==='coop'&&!p.isMe)coopSync(p,q);
+    if(typeof q.d==='number')rows.push({n:(cleanName(q.nm)||nick(p.peer)),me:p.isMe,d:q.d,l:q.l|0,st:q.st,tl:q.tl||0,pid:p.peer,dd:q.dd});
+    if(p.isMe||typeof q.x!=='number'||q.st!=='play')continue;seen.add(p.peer);
+    let a=avatars.get(p.peer);if(!a){a=mkAvatar(p.peer);avatars.set(p.peer,a);a.position.set(q.x,q.y,q.z)}
+    const nm0=cleanName(q.nm)||nick(p.peer);if(a.userData.nm!==nm0){a.remove(a.userData.lab);a.userData.lab=label(nm0,wolfMode&&myRole==='wolf'&&wolves.includes(p.peer)?'rgba(170,20,40,.9)':null);a.add(a.userData.lab);a.userData.nm=nm0}
+    const k=Math.min(1,14*dt);a.position.x+=(q.x-a.position.x)*k;a.position.y+=(q.y-a.position.y)*k;a.position.z+=(q.z-a.position.z)*k;a.rotation.y=q.yaw;
+    const cb=a.userData.cb;cb.visible=!!q.h;if(q.h)cb.material.color.setHex(HC[q.h]||0xffffff)}
+  for(const [id,a] of avatars)if(!seen.has(id)){scene.remove(a);avatars.delete(id)}
+  if(state==='over'&&mode==='versus'&&bT<=0){const rk=$('rank');if(rk){const rs=rows.slice().sort((x,y)=>y.d-x.d||(x.dd||0)-(y.dd||0)||x.l-y.l||y.tl-x.tl);
+    rk.innerHTML='<b>🏆 ランキング</b><br>'+rs.map((r,i)=>`${['🥇','🥈','🥉'][i]||(i+1)+'.'} ${r.me?'<b>'+r.n+'（あなた）</b>':r.n} ✅${r.d} ✖${r.l} ${r.dd?'💀':r.st==='over'?'🏁':r.st==='dead'?'💀':'⏳プレイ中'}`).join('<br>')}}
+  if(bT<=0){bT=.4;const b=$('board');if(state==='lobby'){b.style.display='none';lobbyRender(rows);return}
+    if(mode==='coop'){b.innerHTML=(wolfMode?'🐺 人狼モード':'🤝 協力モード')+' ルーム'+clean(roomCode)+'：'+rows.length+'人<br>'+(wolfMode?'📦 配達 ✅'+items.filter(i=>i.alive&&i.done).length+'/'+items.length+'　✖'+items.filter(i=>!i.alive).length:'チーム配達 ✅'+teamScore()+'個')+'　⏱ '+Math.max(0,Math.ceil(tLeft))+'秒';b.style.display=S.board?'block':'none'}
+    else if(rows.length>=1){rows.sort((x,y)=>y.d-x.d||(x.dd||0)-(y.dd||0)||x.l-y.l||y.tl-x.tl);
+      b.innerHTML='⚔ 対戦モード ルーム'+clean(roomCode)+'：'+rows.length+'人<br>'+rows.map((r,i)=>`${i+1}. ${r.me?'<b>'+r.n+'</b>':r.n} ✅${r.d} ✖${r.l}${r.dd||r.st==='dead'?' 💀':r.st==='over'?' 🏁':''}`).join('<br>');b.style.display=S.board?'block':'none'}
+    else b.style.display='none'}
+}
+// ---- home / room / options ----
+async function leaveRoom(){wolfMode=false;myRole='citizen';wolves=[];wlOut=null;knownP.clear();myGo=0;for(const k in goSeen)delete goSeen[k];if(room){const r=room;room=null;try{await r.leave()}catch(e){}}for(const [,a] of avatars)scene.remove(a);avatars.clear();$('board').style.display='none';myPeer=null}
+function mpStatus(){const s=$('mst');if(!s)return;s.textContent=roomNS===undefined?'接続を確認中…':roomNS?'同じ番号を入力した人と同じ部屋で遊べます':'マルチプレイはサインイン中のメンバー／招待ゲストのみ利用できます';$('bCoop').disabled=$('bVs').disabled=$('bWolf').disabled=!roomNS}
+setInterval(()=>{const s=$('mst');if(state==='ready'&&s&&s.textContent.startsWith('接続'))mpStatus()},500);
+async function joinRoom(code,md){
+  const st=$('mst');st.textContent='入室中…';
+  try{room=await roomNS.join('rd-'+code+(md==='wolf'?'-w':md==='coop'?'-c':'-v'))}catch(e){st.textContent='入室できませんでした（'+((e&&e.code)||'error')+'）';return}
+  roomCode=code;wolfMode=md==='wolf';mode=wolfMode?'coop':md;joinAt=performance.now();knownP.clear();
+  room.onPeers(()=>{const me=room&&room.peers().find(p=>p.isMe);if(me)myPeer=me.peer});
+  room.on('shove',shoveHandler);
+  
+  lobby();notify('✅ '+myName+' としてルーム'+clean(code)+'に入室しました','info')}
+function nameScreen(){
+  state='ready';$('homeBtn').style.display='none';$('opt').style.display='none';ov.style.display='flex';
+  ov.innerHTML=`<h2>急げ！宅配便（仮）</h2><p>配達員の名前を付けてください<br><span style="font-size:.8rem;color:#94a3b8">マルチプレイでは、他のプレイヤーにこの名前が表示されます</span></p><div class="menu"><input id="pn" maxlength="12" placeholder="名前（12文字まで）" value="${myName}"><button class="m" id="pnOk">決定</button><p id="pnMsg" style="font-size:.8rem;color:#ff6a80;margin:0"></p></div>`;
+  const ok=()=>{const v=cleanName($('pn').value);if(!v){$('pnMsg').textContent='名前を入力してください';return}myName=v;try{localStorage.setItem('rd_name',v)}catch(e){}saveProfile();home()};
+  $('pnOk').onclick=ok;$('pn').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing)ok()});$('pn').focus()}
+function home(){paused=false;tutOn=false;$('tut').style.display='none';if(!myName){authScreen();return}
+  leaveRoom();state='ready';bgm(false);held=null;mode='single';
+  if(document.pointerLockElement)document.exitPointerLock();
+  $('homeBtn').style.display='none';$('opt').style.display='none';ov.style.display='flex';
+  ov.innerHTML=`<h2>急げ！宅配便（仮）</h2><p>ブラック宅配「ニャンバット配送」の配達員になって、<br>荷物を150m先の家まで届けよう。</p><p style="margin:2px 0;font-size:.9rem">👤 ${myName}　${myUid?'<button class="m alt" id="bLogout" style="padding:4px 10px;font-size:.8rem">ログアウト</button>':'<button class="m alt" id="bName" style="padding:4px 10px;font-size:.8rem">名前変更</button> <button class="m alt" id="bAuth" style="padding:4px 10px;font-size:.8rem">ログイン／登録</button>'}</p><p style="margin:2px 0;font-size:.78rem;color:#94a3b8;max-width:340px;line-height:1.5">${loginStatus2()}</p>
+<div class="menu"><button class="m" id="bTut">🎓 チュートリアル${tutSeen()?'':'（はじめての方はこちら）'}</button><button class="m" id="bSingle">🚚 シングルプレイ</button><button class="m" id="bMulti">👥 マルチプレイ</button><button class="m alt" id="bRank">🏆 ランキング</button><button class="m alt" id="bOpt">⚙ オプション</button></div>
+<div class="menu" id="sg" style="display:none"></div>
+<div class="menu" id="mp" style="display:none"><input id="rc" inputmode="numeric" maxlength="12" placeholder="ルーム番号（例: 1234）"><button class="m" id="bCoop">🤝 協力モードで入室</button><button class="m" id="bVs">⚔ 対戦モードで入室</button><button class="m" id="bWolf">🐺 人狼モードで入室</button><p style="font-size:.8rem;color:#94a3b8;margin:0;line-height:1.6">🤝 協力：制限時間内にチームで何個運べるか（荷物は補充される）<br>⚔ 対戦：各自の荷物で配達数を競う<br>🐺 人狼：市民は9個の荷物を届け、人狼は妖害する</p><button class="m alt" id="bRand">ランダムな番号</button><p id="mst" style="font-size:.8rem;color:#94a3b8;margin:0"></p></div>`;
+  $('bTut').onclick=startTutorial;$('bSingle').onclick=()=>{stageScreen();return;
+    g.innerHTML=STAGES.map((c,i)=>`<button class="m${unlocked(i)?'':' alt'}" data-s="${i}" ${unlocked(i)?'':'disabled'}>${unlocked(i)?'':'🔒 '}ステージ${c.n}　${'★'.repeat(prog[i]||0)}${'☆'.repeat(3-(prog[i]||0))}</button>`).join('');
+    g.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{stage=+b.dataset.s;mode='single';start()})};
+  $('bOpt').onclick=openOpt;$('bRank').onclick=()=>openRank();if($('bName'))$('bName').onclick=nameScreen;if($('bAuth'))$('bAuth').onclick=authScreen;if($('bLogout'))$('bLogout').onclick=logout;
+  $('bMulti').onclick=()=>{const m=$('mp');m.style.display=m.style.display==='none'?'flex':'none';mpStatus()};
+  $('bRand').onclick=()=>{$('rc').value=String(1000+Math.floor(Math.random()*9000))};
+  const go=m=>{const c=clean($('rc').value).toLowerCase().slice(0,12);if(!c){$('mst').textContent='ルーム番号を入力してください';return}joinRoom(c,m)};
+  $('bCoop').onclick=()=>go('coop');$('bVs').onclick=()=>go('versus');$('bWolf').onclick=()=>go('wolf');
+}
+$('homeBtn').onclick=home;
+function openOpt(){
+  const o=$('opt');o.style.display='flex';
+  const sl=(k,l,mn,mx,st)=>`<div class="row"><span>${l}</span><input type="range" data-k="${k}" min="${mn}" max="${mx}" step="${st}" value="${S[k]}"><span data-v="${k}" style="width:34px;text-align:right">${S[k]}</span></div>`;
+  const ck=(k,l)=>`<div class="row"><span>${l}</span><input type="checkbox" data-c="${k}" ${S[k]?'checked':''}></div>`;
+  const kb=(k,l)=>`<div class="row"><span>${l}</span><button class="kb" data-kb="${k}">${kn(S[k])}</button></div>`;
+  const tabs={a:sl('vol','マスター音量',0,1,.05)+sl('se','効果音',0,1,.05)+sl('bgm','BGM',0,1,.05)+sl('mic','マイク感度',.2,3,.1),
+    c:sl('sens','マウス感度',.3,3,.1)+ck('inv','視点の上下反転')+ck('tog','走るをトグル式にする(Shift)')+kb('kPick','拾う・置く')+kb('kShout','叫ぶ')+kb('kShove','突き飛ばす'),
+    u:ck('guide','操作ガイドを表示')+ck('cross','照準を表示')+ck('board','スコアボードを表示')+sl('hud','HUDサイズ',.7,1.5,.1)+sl('fov','視野角(FOV)',60,100,1)};
+  o.innerHTML=`<h2 style="color:var(--yellow);margin:4px 0">⚙ オプション</h2><div class="tabs">${[['a','🔊 音量'],['c','🎮 操作'],['u','🖥 UI']].map(([k,l])=>`<button class="m ${k===optTab?'':'alt'}" data-t="${k}">${l}</button>`).join('')}</div>${tabs[optTab]}<p id="kbmsg" style="color:#ff6a80;font-size:.8rem;min-height:1em;margin:4px 0"></p><div class="menu"><button class="m alt" id="oReset">初期値に戻す</button><button class="m" id="oBack">戻る</button></div>`;
+  o.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{optTab=b.dataset.t;openOpt()});
+  o.querySelectorAll('input[type=range]').forEach(r=>{r.oninput=()=>{S[r.dataset.k]=+r.value;o.querySelector(`[data-v="${r.dataset.k}"]`).textContent=r.value;saveS();applyUI()};r.onchange=()=>SE.pick()});
+  o.querySelectorAll('[data-c]').forEach(c=>c.onchange=()=>{S[c.dataset.c]=c.checked;saveS();applyUI()});
+  o.querySelectorAll('[data-kb]').forEach(b=>b.onclick=()=>{
+    o.querySelectorAll('[data-kb]').forEach(x=>{x.disabled=x!==b});b.textContent='キーを押す…';
+    const RES=['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','KeyM','KeyR','KeyP','KeyF','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+    rebind=code=>{
+      if(code==='Escape'){rebind=null;openOpt();return}
+      const dup=['kPick','kShout','kShove'].some(k=>k!==b.dataset.kb&&S[k]===code);
+      if(RES.includes(code)||dup){const m=$('kbmsg');if(m)m.textContent=(RES.includes(code)?'そのキーは他の操作で使われています':'同じキーを複数の操作に割り当てられません')+'。別のキーを押してください';return}
+      S[b.dataset.kb]=code;saveS();applyUI();rebind=null;openOpt()}});
+  $('oReset').onclick=()=>{S={...DEF};saveS();applyUI();openOpt()};
+  $('oBack').onclick=()=>{o.style.display='none'};
+}
+let last=0;
+(function loop(t){const dt=Math.min(.05,(t-last)/1000||0);last=t;
+  if(micOn){const d=new Uint8Array(mic.fftSize);mic.getByteTimeDomainData(d);let s=0;for(const v of d){const x=(v-128)/128;s+=x*x}level=Math.min(1,Math.sqrt(s/d.length)*5*S.mic)}
+  if(state==='play'){if(!paused)update(dt)}else if(state==='spec')spec(dt);else if(state==='ready'||state==='lobby'){cam.position.set(0,6,20);cam.lookAt(0,1,-20)}
+  mpUpdate(dt);ring.rotation.y+=dt;ren.render(scene,cam);requestAnimationFrame(loop)})(0);
+applyStage(FULL);reset();planGoal();applyUI();home();
+</script>
+</body>
+</html>
